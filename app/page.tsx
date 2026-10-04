@@ -28,6 +28,7 @@ function modulo(value: number, divisor: number) {
 export default function Home() {
   const [camera, setCamera] = useState({ x: 0, y: 0, logZoom: 0 });
   const [isPanning, setIsPanning] = useState(false);
+  const [isMovingShape, setIsMovingShape] = useState(false);
   const [shapesOpen, setShapesOpen] = useState(false);
   const [selectedShape, setSelectedShape] = useState<ShapeType | null>(null);
   const [rectangles, setRectangles] = useState<RectangleShape[]>([]);
@@ -44,6 +45,12 @@ export default function Home() {
     startX: number;
     startY: number;
     current: RectangleShape;
+  } | null>(null);
+  const moveRef = useRef<{
+    pointerId: number;
+    id: string;
+    offsetX: number;
+    offsetY: number;
   } | null>(null);
 
   const scale = Math.exp(camera.logZoom);
@@ -96,6 +103,28 @@ export default function Home() {
       return;
     }
 
+    const point = getWorldPoint(event);
+    const hitRectangle = [...rectangles]
+      .reverse()
+      .find(
+        (rectangle) =>
+          point.x >= rectangle.x &&
+          point.x <= rectangle.x + rectangle.width &&
+          point.y >= rectangle.y &&
+          point.y <= rectangle.y + rectangle.height,
+      );
+
+    if (hitRectangle) {
+      moveRef.current = {
+        pointerId: event.pointerId,
+        id: hitRectangle.id,
+        offsetX: point.x - hitRectangle.x,
+        offsetY: point.y - hitRectangle.y,
+      };
+      setIsMovingShape(true);
+      return;
+    }
+
     panRef.current = {
       pointerId: event.pointerId,
       x: event.clientX,
@@ -118,6 +147,24 @@ export default function Home() {
 
       drawing.current = rectangle;
       setDraftRectangle(rectangle);
+      return;
+    }
+
+    const moving = moveRef.current;
+    if (moving && moving.pointerId === event.pointerId) {
+      const point = getWorldPoint(event);
+
+      setRectangles((current) =>
+        current.map((rectangle) =>
+          rectangle.id === moving.id
+            ? {
+                ...rectangle,
+                x: point.x - moving.offsetX,
+                y: point.y - moving.offsetY,
+              }
+            : rectangle,
+        ),
+      );
       return;
     }
 
@@ -151,6 +198,12 @@ export default function Home() {
 
       drawRef.current = null;
       setDraftRectangle(null);
+    }
+
+    const moving = moveRef.current;
+    if (moving && moving.pointerId === event.pointerId) {
+      moveRef.current = null;
+      setIsMovingShape(false);
     }
 
     const pan = panRef.current;
@@ -280,7 +333,7 @@ export default function Home() {
       </aside>
 
       <section
-        className={`canvas${isPanning ? " isPanning" : ""}${selectedShape === "rectangle" ? " isDrawing" : ""}`}
+        className={`canvas${isPanning ? " isPanning" : ""}${isMovingShape ? " isMovingShape" : ""}${selectedShape === "rectangle" ? " isDrawing" : ""}`}
         style={canvasStyle}
         aria-label="Free body diagram canvas"
         onPointerDown={handlePointerDown}
