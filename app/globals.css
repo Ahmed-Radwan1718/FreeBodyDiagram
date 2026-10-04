@@ -79,6 +79,9 @@ select {
   flex: 1;
   min-width: 0;
   overflow: hidden;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
   background-color: #fafafa;
   background-image:
     linear-gradient(#e9ebee 1px, transparent 1px),
@@ -86,10 +89,19 @@ select {
     linear-gradient(#d9dde2 1px, transparent 1px),
     linear-gradient(90deg, #d9dde2 1px, transparent 1px);
   background-size:
-    20px 20px,
-    20px 20px,
-    100px 100px,
-    100px 100px;
+    var(--grid-size) var(--grid-size),
+    var(--grid-size) var(--grid-size),
+    var(--major-grid-size) var(--major-grid-size),
+    var(--major-grid-size) var(--major-grid-size);
+  background-position:
+    var(--grid-x) var(--grid-y),
+    var(--grid-x) var(--grid-y),
+    var(--grid-x) var(--grid-y),
+    var(--grid-x) var(--grid-y);
+}
+
+.canvas.isPanning {
+  cursor: grabbing;
 }
 
 @media (max-width: 720px) {
