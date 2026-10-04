@@ -23,6 +23,10 @@ select {
   font: inherit;
 }
 
+button {
+  color: inherit;
+}
+
 .workspace {
   display: flex;
   width: 100vw;
@@ -74,6 +78,28 @@ select {
   gap: 8px;
 }
 
+.sectionButton {
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+}
+
+.sectionButton:hover .sectionLabel,
+.sectionButton:hover .sectionIcon,
+.sectionButton:hover .sectionChevron {
+  color: #343941;
+  stroke: #343941;
+}
+
+.sectionButton:focus-visible {
+  outline: 2px solid #aeb4bd;
+  outline-offset: 5px;
+  border-radius: 3px;
+}
+
 .sectionIcon {
   width: 18px;
   height: 18px;
@@ -83,6 +109,73 @@ select {
   stroke-width: 1.6;
   stroke-linecap: round;
   stroke-linejoin: round;
+}
+
+.sectionChevron {
+  width: 14px;
+  height: 14px;
+  margin-left: auto;
+  fill: none;
+  stroke: #9a9fa8;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform 140ms ease;
+}
+
+.sectionChevron.isOpen {
+  transform: rotate(180deg);
+}
+
+.shapeOptions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  padding-top: 4px;
+}
+
+.shapeOption {
+  min-width: 0;
+  height: 72px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 6px;
+  border: 1px solid #e2e5e9;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #6d737d;
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.shapeOption svg {
+  width: 27px;
+  height: 27px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.shapeOption:hover {
+  border-color: #c8cdd4;
+  background: #f8f9fa;
+  color: #343941;
+}
+
+.shapeOption:focus-visible {
+  outline: 2px solid #aeb4bd;
+  outline-offset: 2px;
+}
+
+.shapeOption.isSelected {
+  border-color: #9ca3ad;
+  background: #f1f3f5;
+  color: #20242a;
 }
 
 .sidebarHint {
@@ -131,5 +224,9 @@ select {
 
   .sidebarHeader h1 {
     font-size: 16px;
+  }
+
+  .shapeOptions {
+    grid-template-columns: 1fr;
   }
 }
