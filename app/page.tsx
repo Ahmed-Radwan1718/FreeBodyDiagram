@@ -13,6 +13,14 @@ const MAJOR_GRID_MULTIPLIER = 5;
 
 type ShapeType = "rectangle" | "circle" | "polygon" | "triangle";
 
+type RectangleShape = {
+  id: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
 function modulo(value: number, divisor: number) {
   return ((value % divisor) + divisor) % divisor;
 }
@@ -22,12 +30,23 @@ export default function Home() {
   const [isPanning, setIsPanning] = useState(false);
   const [shapesOpen, setShapesOpen] = useState(false);
   const [selectedShape, setSelectedShape] = useState<ShapeType | null>(null);
-  const dragRef = useRef<{
+  const [rectangles, setRectangles] = useState<RectangleShape[]>([]);
+  const [draftRectangle, setDraftRectangle] = useState<RectangleShape | null>(null);
+
+  const nextShapeId = useRef(1);
+  const panRef = useRef<{
     pointerId: number;
     x: number;
     y: number;
   } | null>(null);
+  const drawRef = useRef<{
+    pointerId: number;
+    startX: number;
+    startY: number;
+    current: RectangleShape;
+  } | null>(null);
 
+  const scale = Math.exp(camera.logZoom);
   const zoomSteps = camera.logZoom / Math.LN2;
   const zoomLevel = Math.floor(zoomSteps);
   const zoomPhase = zoomSteps - zoomLevel;
@@ -41,11 +60,43 @@ export default function Home() {
     "--grid-y": `${modulo(camera.y, majorGridSize)}px`,
   } as CSSProperties;
 
+  function getWorldPoint(event: ReactPointerEvent<HTMLElement>) {
+    const rect = event.currentTarget.getBoundingClientRect();
+    const screenX = event.clientX - rect.left;
+    const screenY = event.clientY - rect.top;
+
+    return {
+      x: (screenX - camera.x) / scale,
+      y: (screenY - camera.y) / scale,
+    };
+  }
+
   function handlePointerDown(event: ReactPointerEvent<HTMLElement>) {
     if (event.button !== 0) return;
 
     event.currentTarget.setPointerCapture(event.pointerId);
-    dragRef.current = {
+
+    if (selectedShape === "rectangle") {
+      const point = getWorldPoint(event);
+      const rectangle: RectangleShape = {
+        id: `rectangle-${nextShapeId.current++}`,
+        x: point.x,
+        y: point.y,
+        width: 0,
+        height: 0,
+      };
+
+      drawRef.current = {
+        pointerId: event.pointerId,
+        startX: point.x,
+        startY: point.y,
+        current: rectangle,
+      };
+      setDraftRectangle(rectangle);
+      return;
+    }
+
+    panRef.current = {
       pointerId: event.pointerId,
       x: event.clientX,
       y: event.clientY,
@@ -54,14 +105,30 @@ export default function Home() {
   }
 
   function handlePointerMove(event: ReactPointerEvent<HTMLElement>) {
-    const drag = dragRef.current;
-    if (!drag || drag.pointerId !== event.pointerId) return;
+    const drawing = drawRef.current;
+    if (drawing && drawing.pointerId === event.pointerId) {
+      const point = getWorldPoint(event);
+      const rectangle: RectangleShape = {
+        id: drawing.current.id,
+        x: Math.min(drawing.startX, point.x),
+        y: Math.min(drawing.startY, point.y),
+        width: Math.abs(point.x - drawing.startX),
+        height: Math.abs(point.y - drawing.startY),
+      };
 
-    const dx = event.clientX - drag.x;
-    const dy = event.clientY - drag.y;
+      drawing.current = rectangle;
+      setDraftRectangle(rectangle);
+      return;
+    }
 
-    drag.x = event.clientX;
-    drag.y = event.clientY;
+    const pan = panRef.current;
+    if (!pan || pan.pointerId !== event.pointerId) return;
+
+    const dx = event.clientX - pan.x;
+    const dy = event.clientY - pan.y;
+
+    pan.x = event.clientX;
+    pan.y = event.clientY;
 
     setCamera((current) => ({
       ...current,
@@ -70,16 +137,29 @@ export default function Home() {
     }));
   }
 
-  function finishPan(event: ReactPointerEvent<HTMLElement>) {
-    const drag = dragRef.current;
-    if (!drag || drag.pointerId !== event.pointerId) return;
+  function finishPointerInteraction(event: ReactPointerEvent<HTMLElement>) {
+    const drawing = drawRef.current;
+    if (drawing && drawing.pointerId === event.pointerId) {
+      const rectangle = drawing.current;
+      const isLargeEnough = rectangle.width * scale >= 3 && rectangle.height * scale >= 3;
+
+      if (isLargeEnough) {
+        setRectangles((current) => [...current, rectangle]);
+      }
+
+      drawRef.current = null;
+      setDraftRectangle(null);
+    }
+
+    const pan = panRef.current;
+    if (pan && pan.pointerId === event.pointerId) {
+      panRef.current = null;
+      setIsPanning(false);
+    }
 
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
-
-    dragRef.current = null;
-    setIsPanning(false);
   }
 
   function handleWheel(event: ReactWheelEvent<HTMLElement>) {
@@ -100,6 +180,10 @@ export default function Home() {
       x: cursorX - (cursorX - current.x) * zoomFactor,
       y: cursorY - (cursorY - current.y) * zoomFactor,
     }));
+  }
+
+  function toggleShape(shape: ShapeType) {
+    setSelectedShape((current) => (current === shape ? null : shape));
   }
 
   return (
@@ -140,7 +224,8 @@ export default function Home() {
               <button
                 className={`shapeOption${selectedShape === "rectangle" ? " isSelected" : ""}`}
                 type="button"
-                onClick={() => setSelectedShape("rectangle")}
+                aria-pressed={selectedShape === "rectangle"}
+                onClick={() => toggleShape("rectangle")}
               >
                 <svg viewBox="0 0 32 32" aria-hidden="true">
                   <rect x="5" y="8" width="22" height="16" rx="1.5" />
@@ -151,7 +236,8 @@ export default function Home() {
               <button
                 className={`shapeOption${selectedShape === "circle" ? " isSelected" : ""}`}
                 type="button"
-                onClick={() => setSelectedShape("circle")}
+                aria-pressed={selectedShape === "circle"}
+                onClick={() => toggleShape("circle")}
               >
                 <svg viewBox="0 0 32 32" aria-hidden="true">
                   <circle cx="16" cy="16" r="10" />
@@ -162,7 +248,8 @@ export default function Home() {
               <button
                 className={`shapeOption${selectedShape === "polygon" ? " isSelected" : ""}`}
                 type="button"
-                onClick={() => setSelectedShape("polygon")}
+                aria-pressed={selectedShape === "polygon"}
+                onClick={() => toggleShape("polygon")}
               >
                 <svg viewBox="0 0 32 32" aria-hidden="true">
                   <polygon points="16,5 26,12 22,25 10,25 6,12" />
@@ -173,7 +260,8 @@ export default function Home() {
               <button
                 className={`shapeOption${selectedShape === "triangle" ? " isSelected" : ""}`}
                 type="button"
-                onClick={() => setSelectedShape("triangle")}
+                aria-pressed={selectedShape === "triangle"}
+                onClick={() => toggleShape("triangle")}
               >
                 <svg viewBox="0 0 32 32" aria-hidden="true">
                   <polygon points="16,5 27,25 5,25" />
@@ -190,15 +278,42 @@ export default function Home() {
       </aside>
 
       <section
-        className={`canvas${isPanning ? " isPanning" : ""}`}
+        className={`canvas${isPanning ? " isPanning" : ""}${selectedShape === "rectangle" ? " isDrawing" : ""}`}
         style={canvasStyle}
         aria-label="Free body diagram canvas"
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
-        onPointerUp={finishPan}
-        onPointerCancel={finishPan}
+        onPointerUp={finishPointerInteraction}
+        onPointerCancel={finishPointerInteraction}
         onWheel={handleWheel}
-      />
+      >
+        <svg className="drawingLayer" aria-hidden="true">
+          <g transform={`translate(${camera.x} ${camera.y}) scale(${scale})`}>
+            {rectangles.map((rectangle) => (
+              <rect
+                key={rectangle.id}
+                className="drawnRectangle"
+                x={rectangle.x}
+                y={rectangle.y}
+                width={rectangle.width}
+                height={rectangle.height}
+                vectorEffect="non-scaling-stroke"
+              />
+            ))}
+
+            {draftRectangle && (
+              <rect
+                className="drawnRectangle isDraft"
+                x={draftRectangle.x}
+                y={draftRectangle.y}
+                width={draftRectangle.width}
+                height={draftRectangle.height}
+                vectorEffect="non-scaling-stroke"
+              />
+            )}
+          </g>
+        </svg>
+      </section>
     </main>
   );
 }
