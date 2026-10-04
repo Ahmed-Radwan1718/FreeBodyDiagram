@@ -106,8 +106,11 @@ export default function Home() {
         </div>
 
         <div className="sidebarSection">
-          <p className="sectionLabel">Tools</p>
-          <p className="sidebarHint">Your diagram tools will live here.</p>
+          <p className="sectionLabel">Shapes</p>
+        </div>
+
+        <div className="sidebarSection">
+          <p className="sectionLabel">Forces</p>
         </div>
       </aside>
 
