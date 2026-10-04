@@ -11,6 +11,8 @@ import {
 const BASE_GRID_SIZE = 20;
 const MAJOR_GRID_MULTIPLIER = 5;
 
+type ShapeType = "rectangle" | "circle" | "polygon" | "triangle";
+
 function modulo(value: number, divisor: number) {
   return ((value % divisor) + divisor) % divisor;
 }
@@ -18,6 +20,8 @@ function modulo(value: number, divisor: number) {
 export default function Home() {
   const [camera, setCamera] = useState({ x: 0, y: 0, logZoom: 0 });
   const [isPanning, setIsPanning] = useState(false);
+  const [shapesOpen, setShapesOpen] = useState(false);
+  const [selectedShape, setSelectedShape] = useState<ShapeType | null>(null);
   const dragRef = useRef<{
     pointerId: number;
     x: number;
@@ -106,7 +110,13 @@ export default function Home() {
         </div>
 
         <div className="sidebarSection">
-          <div className="sectionHeading">
+          <button
+            className="sectionHeading sectionButton"
+            type="button"
+            aria-expanded={shapesOpen}
+            aria-controls="shape-options"
+            onClick={() => setShapesOpen((open) => !open)}
+          >
             <svg
               className="sectionIcon"
               viewBox="0 0 24 24"
@@ -115,8 +125,63 @@ export default function Home() {
               <rect x="3" y="4" width="12" height="12" rx="1.5" />
               <circle cx="15.5" cy="14.5" r="5.5" />
             </svg>
-            <p className="sectionLabel">Shapes</p>
-          </div>
+            <span className="sectionLabel">Shapes</span>
+            <svg
+              className={`sectionChevron${shapesOpen ? " isOpen" : ""}`}
+              viewBox="0 0 20 20"
+              aria-hidden="true"
+            >
+              <path d="M6 8l4 4 4-4" />
+            </svg>
+          </button>
+
+          {shapesOpen && (
+            <div className="shapeOptions" id="shape-options">
+              <button
+                className={`shapeOption${selectedShape === "rectangle" ? " isSelected" : ""}`}
+                type="button"
+                onClick={() => setSelectedShape("rectangle")}
+              >
+                <svg viewBox="0 0 32 32" aria-hidden="true">
+                  <rect x="5" y="8" width="22" height="16" rx="1.5" />
+                </svg>
+                <span>Rectangle</span>
+              </button>
+
+              <button
+                className={`shapeOption${selectedShape === "circle" ? " isSelected" : ""}`}
+                type="button"
+                onClick={() => setSelectedShape("circle")}
+              >
+                <svg viewBox="0 0 32 32" aria-hidden="true">
+                  <circle cx="16" cy="16" r="10" />
+                </svg>
+                <span>Circle</span>
+              </button>
+
+              <button
+                className={`shapeOption${selectedShape === "polygon" ? " isSelected" : ""}`}
+                type="button"
+                onClick={() => setSelectedShape("polygon")}
+              >
+                <svg viewBox="0 0 32 32" aria-hidden="true">
+                  <polygon points="16,5 26,12 22,25 10,25 6,12" />
+                </svg>
+                <span>Polygon</span>
+              </button>
+
+              <button
+                className={`shapeOption${selectedShape === "triangle" ? " isSelected" : ""}`}
+                type="button"
+                onClick={() => setSelectedShape("triangle")}
+              >
+                <svg viewBox="0 0 32 32" aria-hidden="true">
+                  <polygon points="16,5 27,25 5,25" />
+                </svg>
+                <span>Triangle</span>
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="sidebarSection">
