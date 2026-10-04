@@ -92,18 +92,6 @@ select {
     100px 100px;
 }
 
-.canvasOrigin {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 8px;
-  height: 8px;
-  border: 2px solid #b9bec6;
-  border-radius: 50%;
-  background: #fafafa;
-  transform: translate(-50%, -50%);
-}
-
 @media (max-width: 720px) {
   .sidebar {
     width: 220px;
