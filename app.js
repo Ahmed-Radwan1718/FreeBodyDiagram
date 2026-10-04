@@ -5,6 +5,9 @@ const workspace = document.querySelector(".workspace");
 const gridCanvas = document.querySelector(".grid-canvas");
 
 const SVG_NS = "http://www.w3.org/2000/svg";
+const GRID_SIZE = 24;
+const ZOOM_SENSITIVITY = 0.0015;
+
 const drawingLayer = document.createElementNS(SVG_NS, "svg");
 drawingLayer.classList.add("drawing-layer");
 drawingLayer.setAttribute("width", "100%");
@@ -26,6 +29,7 @@ let draggedShape = null;
 let draggedShapeStart = null;
 let panStart = null;
 let panOffset = { x: 0, y: 0 };
+let zoomScale = 1;
 let spaceHeld = false;
 
 function closePanels() {
@@ -50,9 +54,18 @@ function setActiveShape(shapeName) {
   });
 }
 
-function updatePan() {
-  viewport.setAttribute("transform", `translate(${panOffset.x} ${panOffset.y})`);
+function updateView() {
+  viewport.setAttribute(
+    "transform",
+    `translate(${panOffset.x} ${panOffset.y}) scale(${zoomScale})`
+  );
+
   gridCanvas.style.backgroundPosition = `${panOffset.x}px ${panOffset.y}px`;
+
+  const scaledGridSize = GRID_SIZE * zoomScale;
+  if (Number.isFinite(scaledGridSize) && scaledGridSize > 0) {
+    gridCanvas.style.backgroundSize = `${scaledGridSize}px ${scaledGridSize}px`;
+  }
 }
 
 toolButtons.forEach((button) => {
@@ -93,13 +106,46 @@ function getScreenPoint(event) {
   };
 }
 
-function getWorldPoint(event) {
-  const screen = getScreenPoint(event);
-
+function screenToWorld(screenPoint) {
   return {
-    x: screen.x - panOffset.x,
-    y: screen.y - panOffset.y
+    x: (screenPoint.x - panOffset.x) / zoomScale,
+    y: (screenPoint.y - panOffset.y) / zoomScale
   };
+}
+
+function getWorldPoint(event) {
+  return screenToWorld(getScreenPoint(event));
+}
+
+function normalizeWheelDelta(event) {
+  if (event.deltaMode === WheelEvent.DOM_DELTA_LINE) {
+    return event.deltaY * 16;
+  }
+
+  if (event.deltaMode === WheelEvent.DOM_DELTA_PAGE) {
+    return event.deltaY * Math.max(workspace.clientHeight, 1);
+  }
+
+  return event.deltaY;
+}
+
+function zoomAtPoint(screenPoint, zoomFactor) {
+  if (!Number.isFinite(zoomFactor) || zoomFactor <= 0) return;
+
+  const worldPoint = screenToWorld(screenPoint);
+  const nextZoom = zoomScale * zoomFactor;
+
+  // There is intentionally no artificial min/max zoom level. The only guard
+  // prevents JavaScript numeric overflow/underflow from corrupting the canvas.
+  if (!Number.isFinite(nextZoom) || nextZoom <= 0) return;
+
+  zoomScale = nextZoom;
+  panOffset = {
+    x: screenPoint.x - worldPoint.x * zoomScale,
+    y: screenPoint.y - worldPoint.y * zoomScale
+  };
+
+  updateView();
 }
 
 function createShapeElement(shapeName, point) {
@@ -269,15 +315,15 @@ function continuePointerInteraction(event) {
       x: panStart.x + currentScreen.x - startScreenPoint.x,
       y: panStart.y + currentScreen.y - startScreenPoint.y
     };
-    updatePan();
+    updateView();
     return;
   }
 
   if (interactionMode === "move" && draggedShape) {
     applyShapeTranslation(
       draggedShape,
-      draggedShapeStart.x + currentScreen.x - startScreenPoint.x,
-      draggedShapeStart.y + currentScreen.y - startScreenPoint.y
+      draggedShapeStart.x + (currentScreen.x - startScreenPoint.x) / zoomScale,
+      draggedShapeStart.y + (currentScreen.y - startScreenPoint.y) / zoomScale
     );
     return;
   }
@@ -297,7 +343,11 @@ function finishPointerInteraction(event) {
     const shapeName = draftShape.dataset.shape;
     updateShape(draftShape, shapeName, startWorldPoint, endPoint);
 
-    const dragDistance = Math.hypot(endPoint.x - startWorldPoint.x, endPoint.y - startWorldPoint.y);
+    const endScreenPoint = getScreenPoint(event);
+    const dragDistance = Math.hypot(
+      endScreenPoint.x - startScreenPoint.x,
+      endScreenPoint.y - startScreenPoint.y
+    );
     const shapeCreated = shapeName === "particle" || dragDistance >= 5;
 
     if (!shapeCreated) {
@@ -321,6 +371,20 @@ function finishPointerInteraction(event) {
 drawingLayer.addEventListener("pointerdown", beginPointerInteraction);
 drawingLayer.addEventListener("pointermove", continuePointerInteraction);
 drawingLayer.addEventListener("pointerup", finishPointerInteraction);
+
+drawingLayer.addEventListener(
+  "wheel",
+  (event) => {
+    event.preventDefault();
+
+    const delta = normalizeWheelDelta(event);
+    if (delta === 0) return;
+
+    const zoomFactor = Math.exp(-delta * ZOOM_SENSITIVITY);
+    zoomAtPoint(getScreenPoint(event), zoomFactor);
+  },
+  { passive: false }
+);
 
 drawingLayer.addEventListener("pointercancel", (event) => {
   if (event.pointerId !== activePointerId) return;
@@ -365,4 +429,4 @@ window.addEventListener("blur", () => {
   workspace.classList.remove("space-pan-ready");
 });
 
-updatePan();
+updateView();
