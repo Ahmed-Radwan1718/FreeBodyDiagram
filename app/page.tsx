@@ -1,12 +1,20 @@
 export default function Home() {
   return (
-    <main className="home">
-      <section className="card">
-        <p className="eyebrow">Free Body Diagram</p>
-        <h1>Ready to build.</h1>
-        <p className="subtitle">
-          Next.js + TypeScript is set up. We can build the actual diagram tool here without turning the project into dozens of tiny files.
-        </p>
+    <main className="workspace">
+      <aside className="sidebar">
+        <div className="sidebarHeader">
+          <p className="eyebrow">Mechanics Workspace</p>
+          <h1>Free Body Diagram</h1>
+        </div>
+
+        <div className="sidebarSection">
+          <p className="sectionLabel">Tools</p>
+          <p className="sidebarHint">Your diagram tools will live here.</p>
+        </div>
+      </aside>
+
+      <section className="canvas" aria-label="Free body diagram canvas">
+        <div className="canvasOrigin" />
       </section>
     </main>
   );
