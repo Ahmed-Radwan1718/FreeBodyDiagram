@@ -343,19 +343,17 @@ export default function Home() {
           className="dimensionArrow"
           points={`${verticalX},${bottom} ${verticalX - 3.5},${bottom - verticalArrow} ${verticalX + 3.5},${bottom - verticalArrow}`}
         />
-        <g transform={`rotate(-90 ${verticalX} ${centerY})`}>
-          <rect
-            className="dimensionLabelBackground"
-            x={verticalX - heightLabelWidth / 2}
-            y={centerY - 9}
-            width={heightLabelWidth}
-            height={18}
-            rx={2}
-          />
-          <text className="dimensionLabel" x={verticalX} y={centerY}>
-            {heightLabel}
-          </text>
-        </g>
+        <rect
+          className="dimensionLabelBackground"
+          x={verticalX - heightLabelWidth / 2}
+          y={centerY - 9}
+          width={heightLabelWidth}
+          height={18}
+          rx={2}
+        />
+        <text className="dimensionLabel" x={verticalX} y={centerY}>
+          {heightLabel}
+        </text>
       </g>
     );
   }
@@ -497,7 +495,6 @@ export default function Home() {
               />
             )}
           </g>
-
           {rectangles.map(renderRectangleDimensions)}
           {draftRectangle && renderRectangleDimensions(draftRectangle)}
         </svg>
