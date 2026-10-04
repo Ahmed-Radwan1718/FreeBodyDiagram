@@ -12,9 +12,7 @@ export default function Home() {
         </div>
       </aside>
 
-      <section className="canvas" aria-label="Free body diagram canvas">
-        <div className="canvasOrigin" />
-      </section>
+      <section className="canvas" aria-label="Free body diagram canvas" />
     </main>
   );
 }
