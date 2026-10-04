@@ -3,8 +3,7 @@ export default function Home() {
     <main className="workspace">
       <aside className="sidebar">
         <div className="sidebarHeader">
-          <p className="eyebrow">Mechanics Workspace</p>
-          <h1>Free Body Diagram</h1>
+          <h1>Mechanics Workspace</h1>
         </div>
 
         <div className="sidebarSection">
