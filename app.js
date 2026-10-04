@@ -205,8 +205,9 @@ drawingLayer.addEventListener("pointerup", (event) => {
   updateShape(draftShape, shapeName, startPoint, endPoint);
 
   const dragDistance = Math.hypot(endPoint.x - startPoint.x, endPoint.y - startPoint.y);
+  const shapeCreated = shapeName === "particle" || dragDistance >= 5;
 
-  if (shapeName !== "particle" && dragDistance < 5) {
+  if (!shapeCreated) {
     draftShape.remove();
   } else {
     draftShape.classList.remove("is-draft");
@@ -217,6 +218,10 @@ drawingLayer.addEventListener("pointerup", (event) => {
   }
 
   resetDraft();
+
+  if (shapeCreated) {
+    setActiveShape(null);
+  }
 });
 
 drawingLayer.addEventListener("pointercancel", (event) => {
