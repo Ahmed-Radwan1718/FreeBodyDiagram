@@ -161,6 +161,11 @@ button {
   stroke-linejoin: round;
 }
 
+.shapeOption .particleOptionDot {
+  fill: currentColor;
+  stroke: none;
+}
+
 .shapeOption:hover {
   border-color: #c8cdd4;
   background: #f8f9fa;
@@ -241,15 +246,20 @@ button {
   pointer-events: none;
 }
 
-.drawnRectangle {
+.drawnShape {
   fill: #eef1f4;
   stroke: #555f6b;
   stroke-width: 1.8;
 }
 
-.drawnRectangle.isDraft {
+.drawnShape.isDraft {
   fill: #f5f6f7;
   stroke-dasharray: 6 4;
+}
+
+.drawnParticle {
+  fill: #555f6b;
+  stroke: #555f6b;
 }
 
 .dimensionAnnotation {
