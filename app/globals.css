@@ -4,13 +4,15 @@
 
 html,
 body {
-  margin: 0;
+  width: 100%;
   min-height: 100%;
+  margin: 0;
 }
 
 body {
-  background: #f5f5f5;
-  color: #111111;
+  overflow: hidden;
+  background: #f6f7f9;
+  color: #16181d;
   font-family: Arial, Helvetica, sans-serif;
 }
 
@@ -21,39 +23,95 @@ select {
   font: inherit;
 }
 
-.home {
-  min-height: 100vh;
-  display: grid;
-  place-items: center;
-  padding: 24px;
+.workspace {
+  display: flex;
+  width: 100vw;
+  height: 100vh;
+  background: #ffffff;
 }
 
-.card {
-  width: min(720px, 100%);
-  padding: 40px;
-  background: white;
-  border: 1px solid #dddddd;
-  border-radius: 18px;
+.sidebar {
+  position: relative;
+  z-index: 2;
+  width: 280px;
+  flex: 0 0 280px;
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+  padding: 28px 24px;
+  border-right: 1px solid #e2e5e9;
+  background: #ffffff;
+  box-shadow: 4px 0 18px rgba(18, 24, 40, 0.04);
 }
 
-.eyebrow {
-  margin: 0 0 10px;
-  font-size: 14px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
+.sidebarHeader h1 {
+  margin: 6px 0 0;
+  font-size: 24px;
+  line-height: 1.15;
+  letter-spacing: -0.03em;
 }
 
-h1 {
+.eyebrow,
+.sectionLabel {
   margin: 0;
-  font-size: clamp(36px, 7vw, 64px);
-  line-height: 1;
+  color: #7a818c;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
 }
 
-.subtitle {
-  margin: 20px 0 0;
-  max-width: 600px;
-  color: #555555;
-  font-size: 18px;
-  line-height: 1.6;
+.sidebarSection {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sidebarHint {
+  margin: 0;
+  color: #9a9fa8;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.canvas {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  background-color: #fafafa;
+  background-image:
+    linear-gradient(#e9ebee 1px, transparent 1px),
+    linear-gradient(90deg, #e9ebee 1px, transparent 1px),
+    linear-gradient(#d9dde2 1px, transparent 1px),
+    linear-gradient(90deg, #d9dde2 1px, transparent 1px);
+  background-size:
+    20px 20px,
+    20px 20px,
+    100px 100px,
+    100px 100px;
+}
+
+.canvasOrigin {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 8px;
+  height: 8px;
+  border: 2px solid #b9bec6;
+  border-radius: 50%;
+  background: #fafafa;
+  transform: translate(-50%, -50%);
+}
+
+@media (max-width: 720px) {
+  .sidebar {
+    width: 220px;
+    flex-basis: 220px;
+    padding: 22px 18px;
+  }
+
+  .sidebarHeader h1 {
+    font-size: 20px;
+  }
 }
