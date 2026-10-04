@@ -9,6 +9,7 @@ body {
   height: 100%;
   overflow: hidden;
   font-family: Arial, Helvetica, sans-serif;
+  color: #1f2937;
   background: #f8fafc;
 }
 
@@ -16,16 +17,119 @@ body {
   min-width: 720px;
 }
 
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
 .app-shell {
   display: grid;
-  grid-template-columns: 280px 1fr;
+  grid-template-columns: 300px 1fr;
   width: 100vw;
   height: 100vh;
 }
 
 .sidebar {
+  display: grid;
+  grid-template-columns: 74px 1fr;
+  min-width: 0;
   background: #ffffff;
   border-right: 1px solid #d8dee8;
+  box-shadow: 2px 0 10px rgb(15 23 42 / 5%);
+  z-index: 2;
+}
+
+.tool-rail {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 8px;
+  background: #f7f8fa;
+  border-right: 1px solid #e4e8ee;
+}
+
+.tool-button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  width: 100%;
+  min-height: 62px;
+  padding: 8px 4px;
+  border: 0;
+  border-radius: 8px;
+  color: #5f6876;
+  background: transparent;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.tool-button:hover {
+  background: #e9edf2;
+  color: #202735;
+}
+
+.tool-button:focus-visible {
+  outline: 2px solid #4f78a8;
+  outline-offset: 2px;
+}
+
+.tool-button.is-active {
+  color: #1f5f99;
+  background: #e7f1fb;
+}
+
+.tool-icon {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  font-size: 25px;
+  line-height: 1;
+  font-weight: 500;
+}
+
+.tool-icon-text {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 19px;
+  font-style: italic;
+}
+
+.tool-label {
+  font-size: 10px;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.panel-area {
+  position: relative;
+  min-width: 0;
+  background: #ffffff;
+}
+
+.tool-panel {
+  height: 100%;
+  padding: 20px 18px;
+}
+
+.tool-panel[hidden] {
+  display: none;
+}
+
+.tool-panel h2 {
+  margin: 0 0 8px;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.tool-panel p {
+  margin: 0;
+  color: #818896;
+  font-size: 13px;
+  line-height: 1.45;
 }
 
 .workspace {
