@@ -194,6 +194,15 @@ button {
   touch-action: none;
   user-select: none;
   background-color: #fafafa;
+}
+
+.canvas::before {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  pointer-events: none;
+  opacity: 0.72;
+  filter: blur(0.45px);
   background-image:
     linear-gradient(#e9ebee 1px, transparent 1px),
     linear-gradient(90deg, #e9ebee 1px, transparent 1px),
