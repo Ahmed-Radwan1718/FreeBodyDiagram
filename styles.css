@@ -253,19 +253,20 @@ textarea {
 }
 
 .diagram-shape {
-  fill: rgb(31 95 153 / 10%);
-  stroke: #1f5f99;
-  stroke-width: 2;
+  fill: rgb(71 85 105 / 11%);
+  stroke: #475569;
+  stroke-width: 1.8;
   vector-effect: non-scaling-stroke;
   pointer-events: none;
 }
 
 .diagram-shape.is-draft {
+  fill: rgb(71 85 105 / 7%);
   stroke-dasharray: 6 4;
 }
 
 .diagram-shape[data-shape="particle"] {
-  fill: #1f5f99;
+  fill: #475569;
   stroke: #ffffff;
   stroke-width: 1.5;
   stroke-dasharray: none;
