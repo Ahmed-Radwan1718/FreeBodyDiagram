@@ -145,6 +145,8 @@ export default function Home() {
 
       if (isLargeEnough) {
         setRectangles((current) => [...current, rectangle]);
+        setSelectedShape(null);
+        setShapesOpen(false);
       }
 
       drawRef.current = null;
