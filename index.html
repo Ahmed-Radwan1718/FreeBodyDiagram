@@ -9,10 +9,67 @@
   </head>
   <body>
     <div class="app-shell">
-      <aside class="sidebar" aria-label="Tools panel"></aside>
+      <aside class="sidebar" aria-label="Diagram tools">
+        <nav class="tool-rail" aria-label="Tool categories">
+          <button class="tool-button" type="button" data-panel="shapes" aria-expanded="false" title="Shapes">
+            <span class="tool-icon" aria-hidden="true">□</span>
+            <span class="tool-label">Shapes</span>
+          </button>
+
+          <button class="tool-button" type="button" data-panel="forces" aria-expanded="false" title="Forces">
+            <span class="tool-icon" aria-hidden="true">↑</span>
+            <span class="tool-label">Forces</span>
+          </button>
+
+          <button class="tool-button" type="button" data-panel="canvas" aria-expanded="false" title="Canvas">
+            <span class="tool-icon" aria-hidden="true">#</span>
+            <span class="tool-label">Canvas</span>
+          </button>
+
+          <button class="tool-button" type="button" data-panel="supports" aria-expanded="false" title="Supports">
+            <span class="tool-icon" aria-hidden="true">⌊</span>
+            <span class="tool-label">Supports</span>
+          </button>
+
+          <button class="tool-button" type="button" data-panel="calculations" aria-expanded="false" title="Calculations">
+            <span class="tool-icon tool-icon-text" aria-hidden="true">fx</span>
+            <span class="tool-label">Calculations</span>
+          </button>
+        </nav>
+
+        <section class="panel-area" aria-live="polite">
+          <div class="tool-panel" data-panel-content="shapes" hidden>
+            <h2>Shapes</h2>
+            <p>Shape tools will go here.</p>
+          </div>
+
+          <div class="tool-panel" data-panel-content="forces" hidden>
+            <h2>Forces</h2>
+            <p>Force tools will go here.</p>
+          </div>
+
+          <div class="tool-panel" data-panel-content="canvas" hidden>
+            <h2>Canvas</h2>
+            <p>Canvas controls will go here.</p>
+          </div>
+
+          <div class="tool-panel" data-panel-content="supports" hidden>
+            <h2>Supports</h2>
+            <p>Support tools will go here.</p>
+          </div>
+
+          <div class="tool-panel" data-panel-content="calculations" hidden>
+            <h2>Calculations</h2>
+            <p>Calculation tools will go here.</p>
+          </div>
+        </section>
+      </aside>
+
       <main class="workspace" aria-label="Diagram workspace">
         <div class="grid-canvas" aria-label="Gridded free-body diagram canvas"></div>
       </main>
     </div>
+
+    <script src="/app.js" defer></script>
   </body>
 </html>
