@@ -10,6 +10,8 @@ import {
 
 const BASE_GRID_SIZE = 40;
 const MAJOR_GRID_MULTIPLIER = 5;
+const DIMENSION_OFFSET = 28;
+const DIMENSION_ARROW_SIZE = 7;
 
 type ShapeType = "rectangle" | "circle" | "polygon" | "triangle";
 
@@ -23,6 +25,10 @@ type RectangleShape = {
 
 function modulo(value: number, divisor: number) {
   return ((value % divisor) + divisor) % divisor;
+}
+
+function formatDimension(value: number) {
+  return Number((value / BASE_GRID_SIZE).toFixed(2)).toString();
 }
 
 export default function Home() {
@@ -241,6 +247,119 @@ export default function Home() {
     setSelectedShape((current) => (current === shape ? null : shape));
   }
 
+  function renderRectangleDimensions(rectangle: RectangleShape) {
+    const left = camera.x + rectangle.x * scale;
+    const top = camera.y + rectangle.y * scale;
+    const right = left + rectangle.width * scale;
+    const bottom = top + rectangle.height * scale;
+    const width = right - left;
+    const height = bottom - top;
+    const centerX = (left + right) / 2;
+    const centerY = (top + bottom) / 2;
+    const horizontalY = top - DIMENSION_OFFSET;
+    const verticalX = right + DIMENSION_OFFSET;
+    const horizontalArrow = Math.min(
+      DIMENSION_ARROW_SIZE,
+      Math.max(3, width / 4),
+    );
+    const verticalArrow = Math.min(
+      DIMENSION_ARROW_SIZE,
+      Math.max(3, height / 4),
+    );
+    const widthLabel = formatDimension(rectangle.width);
+    const heightLabel = formatDimension(rectangle.height);
+    const widthLabelWidth = Math.max(28, widthLabel.length * 7 + 12);
+    const heightLabelWidth = Math.max(28, heightLabel.length * 7 + 12);
+
+    return (
+      <g key={`${rectangle.id}-dimensions`} className="dimensionAnnotation">
+        <line
+          className="dimensionExtension"
+          x1={left}
+          y1={top - 4}
+          x2={left}
+          y2={horizontalY - 5}
+        />
+        <line
+          className="dimensionExtension"
+          x1={right}
+          y1={top - 4}
+          x2={right}
+          y2={horizontalY - 5}
+        />
+        <line
+          className="dimensionLine"
+          x1={left}
+          y1={horizontalY}
+          x2={right}
+          y2={horizontalY}
+        />
+        <polygon
+          className="dimensionArrow"
+          points={`${left},${horizontalY} ${left + horizontalArrow},${horizontalY - 3.5} ${left + horizontalArrow},${horizontalY + 3.5}`}
+        />
+        <polygon
+          className="dimensionArrow"
+          points={`${right},${horizontalY} ${right - horizontalArrow},${horizontalY - 3.5} ${right - horizontalArrow},${horizontalY + 3.5}`}
+        />
+        <rect
+          className="dimensionLabelBackground"
+          x={centerX - widthLabelWidth / 2}
+          y={horizontalY - 9}
+          width={widthLabelWidth}
+          height={18}
+          rx={2}
+        />
+        <text className="dimensionLabel" x={centerX} y={horizontalY}>
+          {widthLabel}
+        </text>
+
+        <line
+          className="dimensionExtension"
+          x1={right + 4}
+          y1={top}
+          x2={verticalX + 5}
+          y2={top}
+        />
+        <line
+          className="dimensionExtension"
+          x1={right + 4}
+          y1={bottom}
+          x2={verticalX + 5}
+          y2={bottom}
+        />
+        <line
+          className="dimensionLine"
+          x1={verticalX}
+          y1={top}
+          x2={verticalX}
+          y2={bottom}
+        />
+        <polygon
+          className="dimensionArrow"
+          points={`${verticalX},${top} ${verticalX - 3.5},${top + verticalArrow} ${verticalX + 3.5},${top + verticalArrow}`}
+        />
+        <polygon
+          className="dimensionArrow"
+          points={`${verticalX},${bottom} ${verticalX - 3.5},${bottom - verticalArrow} ${verticalX + 3.5},${bottom - verticalArrow}`}
+        />
+        <g transform={`rotate(-90 ${verticalX} ${centerY})`}>
+          <rect
+            className="dimensionLabelBackground"
+            x={verticalX - heightLabelWidth / 2}
+            y={centerY - 9}
+            width={heightLabelWidth}
+            height={18}
+            rx={2}
+          />
+          <text className="dimensionLabel" x={verticalX} y={centerY}>
+            {heightLabel}
+          </text>
+        </g>
+      </g>
+    );
+  }
+
   return (
     <main className="workspace">
       <aside className="sidebar">
@@ -378,6 +497,9 @@ export default function Home() {
               />
             )}
           </g>
+
+          {rectangles.map(renderRectangleDimensions)}
+          {draftRectangle && renderRectangleDimensions(draftRectangle)}
         </svg>
       </section>
     </main>
