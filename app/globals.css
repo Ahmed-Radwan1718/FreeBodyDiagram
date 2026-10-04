@@ -252,6 +252,39 @@ button {
   stroke-dasharray: 6 4;
 }
 
+.dimensionAnnotation {
+  pointer-events: none;
+}
+
+.dimensionLine,
+.dimensionExtension {
+  fill: none;
+  stroke: #59636f;
+  stroke-width: 1;
+  shape-rendering: geometricPrecision;
+}
+
+.dimensionExtension {
+  opacity: 0.72;
+}
+
+.dimensionArrow {
+  fill: #59636f;
+}
+
+.dimensionLabelBackground {
+  fill: #fafafa;
+}
+
+.dimensionLabel {
+  fill: #3f4852;
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-anchor: middle;
+  dominant-baseline: central;
+}
+
 @media (max-width: 720px) {
   .sidebar {
     width: 220px;
