@@ -12,16 +12,20 @@ const BASE_GRID_SIZE = 40;
 const MAJOR_GRID_MULTIPLIER = 5;
 const DIMENSION_OFFSET = 28;
 const DIMENSION_ARROW_SIZE = 7;
+const PARTICLE_SIZE = 14;
 
-type ShapeType = "rectangle" | "circle" | "polygon" | "triangle";
+type ShapeType = "rectangle" | "circle" | "polygon" | "triangle" | "particle";
 
-type RectangleShape = {
+type CanvasShape = {
   id: string;
+  type: ShapeType;
   x: number;
   y: number;
   width: number;
   height: number;
 };
+
+type Point = { x: number; y: number };
 
 function modulo(value: number, divisor: number) {
   return ((value % divisor) + divisor) % divisor;
@@ -31,14 +35,119 @@ function formatDimension(value: number) {
   return Number((value / BASE_GRID_SIZE).toFixed(2)).toString();
 }
 
+function polygonPoints(shape: CanvasShape, sides = 5) {
+  const centerX = shape.x + shape.width / 2;
+  const centerY = shape.y + shape.height / 2;
+  const radiusX = shape.width / 2;
+  const radiusY = shape.height / 2;
+
+  return Array.from({ length: sides }, (_, index) => {
+    const angle = -Math.PI / 2 + (index * Math.PI * 2) / sides;
+    return {
+      x: centerX + Math.cos(angle) * radiusX,
+      y: centerY + Math.sin(angle) * radiusY,
+    };
+  });
+}
+
+function trianglePoints(shape: CanvasShape) {
+  return [
+    { x: shape.x + shape.width / 2, y: shape.y },
+    { x: shape.x + shape.width, y: shape.y + shape.height },
+    { x: shape.x, y: shape.y + shape.height },
+  ];
+}
+
+function pointsAttribute(points: Point[]) {
+  return points.map((point) => `${point.x},${point.y}`).join(" ");
+}
+
+function pointInPolygon(point: Point, vertices: Point[]) {
+  let inside = false;
+
+  for (let i = 0, j = vertices.length - 1; i < vertices.length; j = i++) {
+    const a = vertices[i];
+    const b = vertices[j];
+    const intersects =
+      a.y > point.y !== b.y > point.y &&
+      point.x < ((b.x - a.x) * (point.y - a.y)) / (b.y - a.y) + a.x;
+
+    if (intersects) inside = !inside;
+  }
+
+  return inside;
+}
+
+function shapeContainsPoint(shape: CanvasShape, point: Point) {
+  if (shape.type === "circle" || shape.type === "particle") {
+    const centerX = shape.x + shape.width / 2;
+    const centerY = shape.y + shape.height / 2;
+    const radiusX = shape.width / 2;
+    const radiusY = shape.height / 2;
+
+    if (radiusX === 0 || radiusY === 0) return false;
+
+    const normalizedX = (point.x - centerX) / radiusX;
+    const normalizedY = (point.y - centerY) / radiusY;
+    return normalizedX ** 2 + normalizedY ** 2 <= 1;
+  }
+
+  if (shape.type === "triangle") {
+    return pointInPolygon(point, trianglePoints(shape));
+  }
+
+  if (shape.type === "polygon") {
+    return pointInPolygon(point, polygonPoints(shape));
+  }
+
+  return (
+    point.x >= shape.x &&
+    point.x <= shape.x + shape.width &&
+    point.y >= shape.y &&
+    point.y <= shape.y + shape.height
+  );
+}
+
+function shapeFromDrag(
+  type: Exclude<ShapeType, "particle">,
+  id: string,
+  startX: number,
+  startY: number,
+  point: Point,
+): CanvasShape {
+  const dx = point.x - startX;
+  const dy = point.y - startY;
+
+  if (type === "circle") {
+    const size = Math.max(Math.abs(dx), Math.abs(dy));
+    return {
+      id,
+      type,
+      x: dx < 0 ? startX - size : startX,
+      y: dy < 0 ? startY - size : startY,
+      width: size,
+      height: size,
+    };
+  }
+
+  return {
+    id,
+    type,
+    x: Math.min(startX, point.x),
+    y: Math.min(startY, point.y),
+    width: Math.abs(dx),
+    height: Math.abs(dy),
+  };
+}
+
 export default function Home() {
   const [camera, setCamera] = useState({ x: 0, y: 0, logZoom: 0 });
   const [isPanning, setIsPanning] = useState(false);
   const [isMovingShape, setIsMovingShape] = useState(false);
   const [shapesOpen, setShapesOpen] = useState(false);
   const [selectedShape, setSelectedShape] = useState<ShapeType | null>(null);
-  const [rectangles, setRectangles] = useState<RectangleShape[]>([]);
-  const [draftRectangle, setDraftRectangle] = useState<RectangleShape | null>(null);
+  const [shapes, setShapes] = useState<CanvasShape[]>([]);
+  const [draftShape, setDraftShape] = useState<CanvasShape | null>(null);
 
   const nextShapeId = useRef(1);
   const panRef = useRef<{
@@ -48,9 +157,10 @@ export default function Home() {
   } | null>(null);
   const drawRef = useRef<{
     pointerId: number;
+    type: Exclude<ShapeType, "particle">;
     startX: number;
     startY: number;
-    current: RectangleShape;
+    current: CanvasShape;
   } | null>(null);
   const moveRef = useRef<{
     pointerId: number;
@@ -84,48 +194,56 @@ export default function Home() {
     };
   }
 
+  function finishShapeTool() {
+    setSelectedShape(null);
+    setShapesOpen(false);
+  }
+
   function handlePointerDown(event: ReactPointerEvent<HTMLElement>) {
     if (event.button !== 0) return;
 
     event.currentTarget.setPointerCapture(event.pointerId);
+    const point = getWorldPoint(event);
 
-    if (selectedShape === "rectangle") {
-      const point = getWorldPoint(event);
-      const rectangle: RectangleShape = {
-        id: `rectangle-${nextShapeId.current++}`,
-        x: point.x,
-        y: point.y,
-        width: 0,
-        height: 0,
+    if (selectedShape === "particle") {
+      const particle: CanvasShape = {
+        id: `particle-${nextShapeId.current++}`,
+        type: "particle",
+        x: point.x - PARTICLE_SIZE / 2,
+        y: point.y - PARTICLE_SIZE / 2,
+        width: PARTICLE_SIZE,
+        height: PARTICLE_SIZE,
       };
-
-      drawRef.current = {
-        pointerId: event.pointerId,
-        startX: point.x,
-        startY: point.y,
-        current: rectangle,
-      };
-      setDraftRectangle(rectangle);
+      setShapes((current) => [...current, particle]);
+      finishShapeTool();
       return;
     }
 
-    const point = getWorldPoint(event);
-    const hitRectangle = [...rectangles]
-      .reverse()
-      .find(
-        (rectangle) =>
-          point.x >= rectangle.x &&
-          point.x <= rectangle.x + rectangle.width &&
-          point.y >= rectangle.y &&
-          point.y <= rectangle.y + rectangle.height,
-      );
+    if (selectedShape) {
+      const id = `${selectedShape}-${nextShapeId.current++}`;
+      const shape = shapeFromDrag(selectedShape, id, point.x, point.y, point);
 
-    if (hitRectangle) {
+      drawRef.current = {
+        pointerId: event.pointerId,
+        type: selectedShape,
+        startX: point.x,
+        startY: point.y,
+        current: shape,
+      };
+      setDraftShape(shape);
+      return;
+    }
+
+    const hitShape = [...shapes]
+      .reverse()
+      .find((shape) => shapeContainsPoint(shape, point));
+
+    if (hitShape) {
       moveRef.current = {
         pointerId: event.pointerId,
-        id: hitRectangle.id,
-        offsetX: point.x - hitRectangle.x,
-        offsetY: point.y - hitRectangle.y,
+        id: hitShape.id,
+        offsetX: point.x - hitShape.x,
+        offsetY: point.y - hitShape.y,
       };
       setIsMovingShape(true);
       return;
@@ -143,16 +261,16 @@ export default function Home() {
     const drawing = drawRef.current;
     if (drawing && drawing.pointerId === event.pointerId) {
       const point = getWorldPoint(event);
-      const rectangle: RectangleShape = {
-        id: drawing.current.id,
-        x: Math.min(drawing.startX, point.x),
-        y: Math.min(drawing.startY, point.y),
-        width: Math.abs(point.x - drawing.startX),
-        height: Math.abs(point.y - drawing.startY),
-      };
+      const shape = shapeFromDrag(
+        drawing.type,
+        drawing.current.id,
+        drawing.startX,
+        drawing.startY,
+        point,
+      );
 
-      drawing.current = rectangle;
-      setDraftRectangle(rectangle);
+      drawing.current = shape;
+      setDraftShape(shape);
       return;
     }
 
@@ -160,15 +278,15 @@ export default function Home() {
     if (moving && moving.pointerId === event.pointerId) {
       const point = getWorldPoint(event);
 
-      setRectangles((current) =>
-        current.map((rectangle) =>
-          rectangle.id === moving.id
+      setShapes((current) =>
+        current.map((shape) =>
+          shape.id === moving.id
             ? {
-                ...rectangle,
+                ...shape,
                 x: point.x - moving.offsetX,
                 y: point.y - moving.offsetY,
               }
-            : rectangle,
+            : shape,
         ),
       );
       return;
@@ -193,17 +311,16 @@ export default function Home() {
   function finishPointerInteraction(event: ReactPointerEvent<HTMLElement>) {
     const drawing = drawRef.current;
     if (drawing && drawing.pointerId === event.pointerId) {
-      const rectangle = drawing.current;
-      const isLargeEnough = rectangle.width * scale >= 3 && rectangle.height * scale >= 3;
+      const shape = drawing.current;
+      const isLargeEnough = shape.width * scale >= 3 && shape.height * scale >= 3;
 
       if (isLargeEnough) {
-        setRectangles((current) => [...current, rectangle]);
-        setSelectedShape(null);
-        setShapesOpen(false);
+        setShapes((current) => [...current, shape]);
+        finishShapeTool();
       }
 
       drawRef.current = null;
-      setDraftRectangle(null);
+      setDraftShape(null);
     }
 
     const moving = moveRef.current;
@@ -247,11 +364,65 @@ export default function Home() {
     setSelectedShape((current) => (current === shape ? null : shape));
   }
 
-  function renderRectangleDimensions(rectangle: RectangleShape) {
-    const left = camera.x + rectangle.x * scale;
-    const top = camera.y + rectangle.y * scale;
-    const right = left + rectangle.width * scale;
-    const bottom = top + rectangle.height * scale;
+  function renderShape(shape: CanvasShape, isDraft = false) {
+    const className = `drawnShape drawn${shape.type[0].toUpperCase()}${shape.type.slice(1)}${isDraft ? " isDraft" : ""}`;
+
+    if (shape.type === "circle" || shape.type === "particle") {
+      return (
+        <ellipse
+          key={shape.id}
+          className={className}
+          cx={shape.x + shape.width / 2}
+          cy={shape.y + shape.height / 2}
+          rx={shape.width / 2}
+          ry={shape.height / 2}
+          vectorEffect="non-scaling-stroke"
+        />
+      );
+    }
+
+    if (shape.type === "triangle") {
+      return (
+        <polygon
+          key={shape.id}
+          className={className}
+          points={pointsAttribute(trianglePoints(shape))}
+          vectorEffect="non-scaling-stroke"
+        />
+      );
+    }
+
+    if (shape.type === "polygon") {
+      return (
+        <polygon
+          key={shape.id}
+          className={className}
+          points={pointsAttribute(polygonPoints(shape))}
+          vectorEffect="non-scaling-stroke"
+        />
+      );
+    }
+
+    return (
+      <rect
+        key={shape.id}
+        className={className}
+        x={shape.x}
+        y={shape.y}
+        width={shape.width}
+        height={shape.height}
+        vectorEffect="non-scaling-stroke"
+      />
+    );
+  }
+
+  function renderRectangleDimensions(shape: CanvasShape) {
+    if (shape.type !== "rectangle") return null;
+
+    const left = camera.x + shape.x * scale;
+    const top = camera.y + shape.y * scale;
+    const right = left + shape.width * scale;
+    const bottom = top + shape.height * scale;
     const width = right - left;
     const height = bottom - top;
     const centerX = (left + right) / 2;
@@ -266,34 +437,16 @@ export default function Home() {
       DIMENSION_ARROW_SIZE,
       Math.max(3, height / 4),
     );
-    const widthLabel = formatDimension(rectangle.width);
-    const heightLabel = formatDimension(rectangle.height);
+    const widthLabel = formatDimension(shape.width);
+    const heightLabel = formatDimension(shape.height);
     const widthLabelWidth = Math.max(28, widthLabel.length * 7 + 12);
     const heightLabelWidth = Math.max(28, heightLabel.length * 7 + 12);
 
     return (
-      <g key={`${rectangle.id}-dimensions`} className="dimensionAnnotation">
-        <line
-          className="dimensionExtension"
-          x1={left}
-          y1={top - 4}
-          x2={left}
-          y2={horizontalY - 5}
-        />
-        <line
-          className="dimensionExtension"
-          x1={right}
-          y1={top - 4}
-          x2={right}
-          y2={horizontalY - 5}
-        />
-        <line
-          className="dimensionLine"
-          x1={left}
-          y1={horizontalY}
-          x2={right}
-          y2={horizontalY}
-        />
+      <g key={`${shape.id}-dimensions`} className="dimensionAnnotation">
+        <line className="dimensionExtension" x1={left} y1={top - 4} x2={left} y2={horizontalY - 5} />
+        <line className="dimensionExtension" x1={right} y1={top - 4} x2={right} y2={horizontalY - 5} />
+        <line className="dimensionLine" x1={left} y1={horizontalY} x2={right} y2={horizontalY} />
         <polygon
           className="dimensionArrow"
           points={`${left},${horizontalY} ${left + horizontalArrow},${horizontalY - 3.5} ${left + horizontalArrow},${horizontalY + 3.5}`}
@@ -314,27 +467,9 @@ export default function Home() {
           {widthLabel}
         </text>
 
-        <line
-          className="dimensionExtension"
-          x1={right + 4}
-          y1={top}
-          x2={verticalX + 5}
-          y2={top}
-        />
-        <line
-          className="dimensionExtension"
-          x1={right + 4}
-          y1={bottom}
-          x2={verticalX + 5}
-          y2={bottom}
-        />
-        <line
-          className="dimensionLine"
-          x1={verticalX}
-          y1={top}
-          x2={verticalX}
-          y2={bottom}
-        />
+        <line className="dimensionExtension" x1={right + 4} y1={top} x2={verticalX + 5} y2={top} />
+        <line className="dimensionExtension" x1={right + 4} y1={bottom} x2={verticalX + 5} y2={bottom} />
+        <line className="dimensionLine" x1={verticalX} y1={top} x2={verticalX} y2={bottom} />
         <polygon
           className="dimensionArrow"
           points={`${verticalX},${top} ${verticalX - 3.5},${top + verticalArrow} ${verticalX + 3.5},${top + verticalArrow}`}
@@ -358,6 +493,22 @@ export default function Home() {
     );
   }
 
+  const shapeOptions: { type: ShapeType; label: string }[] = [
+    { type: "rectangle", label: "Rectangle" },
+    { type: "circle", label: "Circle" },
+    { type: "triangle", label: "Triangle" },
+    { type: "polygon", label: "Polygon" },
+    { type: "particle", label: "Particle" },
+  ];
+
+  function shapeOptionIcon(type: ShapeType) {
+    if (type === "circle") return <circle cx="16" cy="16" r="10" />;
+    if (type === "triangle") return <polygon points="16,5 27,25 5,25" />;
+    if (type === "polygon") return <polygon points="16,5 26,12 22,25 10,25 6,12" />;
+    if (type === "particle") return <circle cx="16" cy="16" r="4.5" className="particleOptionDot" />;
+    return <rect x="5" y="8" width="22" height="16" rx="1.5" />;
+  }
+
   return (
     <main className="workspace">
       <aside className="sidebar">
@@ -373,11 +524,7 @@ export default function Home() {
             aria-controls="shape-options"
             onClick={() => setShapesOpen((open) => !open)}
           >
-            <svg
-              className="sectionIcon"
-              viewBox="0 0 24 24"
-              aria-hidden="true"
-            >
+            <svg className="sectionIcon" viewBox="0 0 24 24" aria-hidden="true">
               <rect x="3" y="4" width="12" height="12" rx="1.5" />
               <circle cx="15.5" cy="14.5" r="5.5" />
             </svg>
@@ -393,64 +540,27 @@ export default function Home() {
 
           {shapesOpen && (
             <div className="shapeOptions" id="shape-options">
-              <button
-                className={`shapeOption${selectedShape === "rectangle" ? " isSelected" : ""}`}
-                type="button"
-                aria-pressed={selectedShape === "rectangle"}
-                onClick={() => toggleShape("rectangle")}
-              >
-                <svg viewBox="0 0 32 32" aria-hidden="true">
-                  <rect x="5" y="8" width="22" height="16" rx="1.5" />
-                </svg>
-                <span>Rectangle</span>
-              </button>
-
-              <button
-                className={`shapeOption${selectedShape === "circle" ? " isSelected" : ""}`}
-                type="button"
-                aria-pressed={selectedShape === "circle"}
-                onClick={() => toggleShape("circle")}
-              >
-                <svg viewBox="0 0 32 32" aria-hidden="true">
-                  <circle cx="16" cy="16" r="10" />
-                </svg>
-                <span>Circle</span>
-              </button>
-
-              <button
-                className={`shapeOption${selectedShape === "polygon" ? " isSelected" : ""}`}
-                type="button"
-                aria-pressed={selectedShape === "polygon"}
-                onClick={() => toggleShape("polygon")}
-              >
-                <svg viewBox="0 0 32 32" aria-hidden="true">
-                  <polygon points="16,5 26,12 22,25 10,25 6,12" />
-                </svg>
-                <span>Polygon</span>
-              </button>
-
-              <button
-                className={`shapeOption${selectedShape === "triangle" ? " isSelected" : ""}`}
-                type="button"
-                aria-pressed={selectedShape === "triangle"}
-                onClick={() => toggleShape("triangle")}
-              >
-                <svg viewBox="0 0 32 32" aria-hidden="true">
-                  <polygon points="16,5 27,25 5,25" />
-                </svg>
-                <span>Triangle</span>
-              </button>
+              {shapeOptions.map((option) => (
+                <button
+                  key={option.type}
+                  className={`shapeOption${selectedShape === option.type ? " isSelected" : ""}`}
+                  type="button"
+                  aria-pressed={selectedShape === option.type}
+                  onClick={() => toggleShape(option.type)}
+                >
+                  <svg viewBox="0 0 32 32" aria-hidden="true">
+                    {shapeOptionIcon(option.type)}
+                  </svg>
+                  <span>{option.label}</span>
+                </button>
+              ))}
             </div>
           )}
         </div>
 
         <div className="sidebarSection">
           <div className="sectionHeading">
-            <svg
-              className="sectionIcon"
-              viewBox="0 0 24 24"
-              aria-hidden="true"
-            >
+            <svg className="sectionIcon" viewBox="0 0 24 24" aria-hidden="true">
               <circle cx="5" cy="12" r="1.8" />
               <path d="M7 12h11" />
               <path d="M14.5 8.5 18 12l-3.5 3.5" />
@@ -461,7 +571,7 @@ export default function Home() {
       </aside>
 
       <section
-        className={`canvas${isPanning ? " isPanning" : ""}${isMovingShape ? " isMovingShape" : ""}${selectedShape === "rectangle" ? " isDrawing" : ""}`}
+        className={`canvas${isPanning ? " isPanning" : ""}${isMovingShape ? " isMovingShape" : ""}${selectedShape ? " isDrawing" : ""}`}
         style={canvasStyle}
         aria-label="Free body diagram canvas"
         onPointerDown={handlePointerDown}
@@ -472,31 +582,11 @@ export default function Home() {
       >
         <svg className="drawingLayer" aria-hidden="true">
           <g transform={`translate(${camera.x} ${camera.y}) scale(${scale})`}>
-            {rectangles.map((rectangle) => (
-              <rect
-                key={rectangle.id}
-                className="drawnRectangle"
-                x={rectangle.x}
-                y={rectangle.y}
-                width={rectangle.width}
-                height={rectangle.height}
-                vectorEffect="non-scaling-stroke"
-              />
-            ))}
-
-            {draftRectangle && (
-              <rect
-                className="drawnRectangle isDraft"
-                x={draftRectangle.x}
-                y={draftRectangle.y}
-                width={draftRectangle.width}
-                height={draftRectangle.height}
-                vectorEffect="non-scaling-stroke"
-              />
-            )}
+            {shapes.map((shape) => renderShape(shape))}
+            {draftShape && renderShape(draftShape, true)}
           </g>
-          {rectangles.map(renderRectangleDimensions)}
-          {draftRectangle && renderRectangleDimensions(draftRectangle)}
+          {shapes.map(renderRectangleDimensions)}
+          {draftShape && renderRectangleDimensions(draftShape)}
         </svg>
       </section>
     </main>
