@@ -328,7 +328,18 @@ export default function Home() {
         </div>
 
         <div className="sidebarSection">
-          <p className="sectionLabel">Forces</p>
+          <div className="sectionHeading">
+            <svg
+              className="sectionIcon"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+            >
+              <circle cx="5" cy="12" r="1.8" />
+              <path d="M7 12h11" />
+              <path d="M14.5 8.5 18 12l-3.5 3.5" />
+            </svg>
+            <p className="sectionLabel">Forces</p>
+          </div>
         </div>
       </aside>
 
