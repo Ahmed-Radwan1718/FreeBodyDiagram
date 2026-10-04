@@ -8,7 +8,7 @@ import {
   type WheelEvent as ReactWheelEvent,
 } from "react";
 
-const BASE_GRID_SIZE = 20;
+const BASE_GRID_SIZE = 40;
 const MAJOR_GRID_MULTIPLIER = 5;
 
 type ShapeType = "rectangle" | "circle" | "polygon" | "triangle";
