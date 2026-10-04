@@ -106,7 +106,17 @@ export default function Home() {
         </div>
 
         <div className="sidebarSection">
-          <p className="sectionLabel">Shapes</p>
+          <div className="sectionHeading">
+            <svg
+              className="sectionIcon"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+            >
+              <rect x="3" y="4" width="12" height="12" rx="1.5" />
+              <circle cx="15.5" cy="14.5" r="5.5" />
+            </svg>
+            <p className="sectionLabel">Shapes</p>
+          </div>
         </div>
 
         <div className="sidebarSection">
