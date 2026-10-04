@@ -224,6 +224,10 @@ button {
   cursor: grabbing;
 }
 
+.canvas.isMovingShape {
+  cursor: move;
+}
+
 .canvas.isDrawing {
   cursor: crosshair;
 }
@@ -238,13 +242,13 @@ button {
 }
 
 .drawnRectangle {
-  fill: rgba(86, 98, 112, 0.08);
+  fill: #eef1f4;
   stroke: #555f6b;
   stroke-width: 1.8;
 }
 
 .drawnRectangle.isDraft {
-  fill: rgba(86, 98, 112, 0.05);
+  fill: #f5f6f7;
   stroke-dasharray: 6 4;
 }
 
