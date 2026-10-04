@@ -2,6 +2,7 @@ const toolButtons = document.querySelectorAll(".tool-button");
 const panels = document.querySelectorAll(".tool-panel");
 const shapeButtons = document.querySelectorAll(".shape-option");
 const workspace = document.querySelector(".workspace");
+const gridCanvas = document.querySelector(".grid-canvas");
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 const drawingLayer = document.createElementNS(SVG_NS, "svg");
@@ -11,10 +12,21 @@ drawingLayer.setAttribute("height", "100%");
 drawingLayer.setAttribute("aria-label", "Diagram drawing layer");
 workspace.append(drawingLayer);
 
+const viewport = document.createElementNS(SVG_NS, "g");
+viewport.classList.add("drawing-viewport");
+drawingLayer.append(viewport);
+
 let activeShape = null;
 let draftShape = null;
-let startPoint = null;
 let activePointerId = null;
+let interactionMode = null;
+let startScreenPoint = null;
+let startWorldPoint = null;
+let draggedShape = null;
+let draggedShapeStart = null;
+let panStart = null;
+let panOffset = { x: 0, y: 0 };
+let spaceHeld = false;
 
 function closePanels() {
   toolButtons.forEach((button) => {
@@ -36,6 +48,11 @@ function setActiveShape(shapeName) {
     button.classList.toggle("is-selected", selected);
     button.setAttribute("aria-pressed", String(selected));
   });
+}
+
+function updatePan() {
+  viewport.setAttribute("transform", `translate(${panOffset.x} ${panOffset.y})`);
+  gridCanvas.style.backgroundPosition = `${panOffset.x}px ${panOffset.y}px`;
 }
 
 toolButtons.forEach((button) => {
@@ -67,12 +84,21 @@ shapeButtons.forEach((button) => {
   });
 });
 
-function getCanvasPoint(event) {
+function getScreenPoint(event) {
   const bounds = drawingLayer.getBoundingClientRect();
 
   return {
-    x: Math.max(0, Math.min(bounds.width, event.clientX - bounds.left)),
-    y: Math.max(0, Math.min(bounds.height, event.clientY - bounds.top))
+    x: event.clientX - bounds.left,
+    y: event.clientY - bounds.top
+  };
+}
+
+function getWorldPoint(event) {
+  const screen = getScreenPoint(event);
+
+  return {
+    x: screen.x - panOffset.x,
+    y: screen.y - panOffset.y
   };
 }
 
@@ -89,7 +115,9 @@ function createShapeElement(shapeName, point) {
 
   element.classList.add("diagram-shape", "is-draft");
   element.dataset.shape = shapeName;
-  drawingLayer.append(element);
+  element.dataset.translateX = "0";
+  element.dataset.translateY = "0";
+  viewport.append(element);
 
   if (shapeName === "particle") {
     element.setAttribute("cx", point.x);
@@ -164,10 +192,26 @@ function updateShape(element, shapeName, start, end) {
   }
 }
 
-function resetDraft() {
+function applyShapeTranslation(element, x, y) {
+  element.dataset.translateX = String(x);
+  element.dataset.translateY = String(y);
+  element.setAttribute("transform", `translate(${x} ${y})`);
+}
+
+function resetInteraction() {
+  if (draggedShape) {
+    draggedShape.classList.remove("is-moving");
+  }
+
   draftShape = null;
-  startPoint = null;
   activePointerId = null;
+  interactionMode = null;
+  startScreenPoint = null;
+  startWorldPoint = null;
+  draggedShape = null;
+  draggedShapeStart = null;
+  panStart = null;
+  workspace.classList.remove("is-panning");
 }
 
 function cancelDraft() {
@@ -175,66 +219,150 @@ function cancelDraft() {
     draftShape.remove();
   }
 
-  resetDraft();
+  resetInteraction();
 }
 
-drawingLayer.addEventListener("pointerdown", (event) => {
-  if (!activeShape || event.button !== 0 || draftShape) return;
+function beginPointerInteraction(event) {
+  if ((event.button !== 0 && event.button !== 1) || activePointerId !== null) return;
+
+  const screenPoint = getScreenPoint(event);
+  const forcePan = event.button === 1 || spaceHeld;
+  const targetShape = event.target.closest?.(".diagram-shape");
 
   event.preventDefault();
-  startPoint = getCanvasPoint(event);
   activePointerId = event.pointerId;
-  draftShape = createShapeElement(activeShape, startPoint);
-  updateShape(draftShape, activeShape, startPoint, startPoint);
+  startScreenPoint = screenPoint;
   drawingLayer.setPointerCapture(event.pointerId);
-});
 
-drawingLayer.addEventListener("pointermove", (event) => {
-  if (!draftShape || event.pointerId !== activePointerId) return;
+  if (forcePan || (!activeShape && !targetShape)) {
+    interactionMode = "pan";
+    panStart = { ...panOffset };
+    workspace.classList.add("is-panning");
+    return;
+  }
+
+  if (!activeShape && targetShape) {
+    interactionMode = "move";
+    draggedShape = targetShape;
+    draggedShape.classList.add("is-moving");
+    draggedShapeStart = {
+      x: Number(draggedShape.dataset.translateX || 0),
+      y: Number(draggedShape.dataset.translateY || 0)
+    };
+    return;
+  }
+
+  interactionMode = "draw";
+  startWorldPoint = getWorldPoint(event);
+  draftShape = createShapeElement(activeShape, startWorldPoint);
+  updateShape(draftShape, activeShape, startWorldPoint, startWorldPoint);
+}
+
+function continuePointerInteraction(event) {
+  if (event.pointerId !== activePointerId || !interactionMode) return;
 
   event.preventDefault();
-  updateShape(draftShape, draftShape.dataset.shape, startPoint, getCanvasPoint(event));
-});
+  const currentScreen = getScreenPoint(event);
 
-drawingLayer.addEventListener("pointerup", (event) => {
-  if (!draftShape || event.pointerId !== activePointerId) return;
+  if (interactionMode === "pan") {
+    panOffset = {
+      x: panStart.x + currentScreen.x - startScreenPoint.x,
+      y: panStart.y + currentScreen.y - startScreenPoint.y
+    };
+    updatePan();
+    return;
+  }
+
+  if (interactionMode === "move" && draggedShape) {
+    applyShapeTranslation(
+      draggedShape,
+      draggedShapeStart.x + currentScreen.x - startScreenPoint.x,
+      draggedShapeStart.y + currentScreen.y - startScreenPoint.y
+    );
+    return;
+  }
+
+  if (interactionMode === "draw" && draftShape) {
+    updateShape(draftShape, draftShape.dataset.shape, startWorldPoint, getWorldPoint(event));
+  }
+}
+
+function finishPointerInteraction(event) {
+  if (event.pointerId !== activePointerId || !interactionMode) return;
 
   event.preventDefault();
-  const endPoint = getCanvasPoint(event);
-  const shapeName = draftShape.dataset.shape;
-  updateShape(draftShape, shapeName, startPoint, endPoint);
 
-  const dragDistance = Math.hypot(endPoint.x - startPoint.x, endPoint.y - startPoint.y);
-  const shapeCreated = shapeName === "particle" || dragDistance >= 5;
+  if (interactionMode === "draw" && draftShape) {
+    const endPoint = getWorldPoint(event);
+    const shapeName = draftShape.dataset.shape;
+    updateShape(draftShape, shapeName, startWorldPoint, endPoint);
 
-  if (!shapeCreated) {
-    draftShape.remove();
-  } else {
-    draftShape.classList.remove("is-draft");
+    const dragDistance = Math.hypot(endPoint.x - startWorldPoint.x, endPoint.y - startWorldPoint.y);
+    const shapeCreated = shapeName === "particle" || dragDistance >= 5;
+
+    if (!shapeCreated) {
+      draftShape.remove();
+    } else {
+      draftShape.classList.remove("is-draft");
+    }
+
+    if (shapeCreated) {
+      setActiveShape(null);
+    }
   }
 
   if (drawingLayer.hasPointerCapture(event.pointerId)) {
     drawingLayer.releasePointerCapture(event.pointerId);
   }
 
-  resetDraft();
+  resetInteraction();
+}
 
-  if (shapeCreated) {
-    setActiveShape(null);
-  }
-});
+drawingLayer.addEventListener("pointerdown", beginPointerInteraction);
+drawingLayer.addEventListener("pointermove", continuePointerInteraction);
+drawingLayer.addEventListener("pointerup", finishPointerInteraction);
 
 drawingLayer.addEventListener("pointercancel", (event) => {
   if (event.pointerId !== activePointerId) return;
-  cancelDraft();
+
+  if (interactionMode === "draw") {
+    cancelDraft();
+    return;
+  }
+
+  resetInteraction();
+});
+
+drawingLayer.addEventListener("contextmenu", (event) => {
+  if (spaceHeld || interactionMode === "pan") {
+    event.preventDefault();
+  }
 });
 
 window.addEventListener("keydown", (event) => {
+  if (event.code === "Space" && !event.repeat) {
+    spaceHeld = true;
+    workspace.classList.add("space-pan-ready");
+  }
+
   if (event.key !== "Escape") return;
 
-  if (draftShape) {
+  if (interactionMode === "draw" && draftShape) {
     cancelDraft();
   } else if (activeShape) {
     setActiveShape(null);
   }
 });
+
+window.addEventListener("keyup", (event) => {
+  if (event.code !== "Space") return;
+  spaceHeld = false;
+  workspace.classList.remove("space-pan-ready");
+});
+
+window.addEventListener("blur", () => {
+  spaceHeld = false;
+  workspace.classList.remove("space-pan-ready");
+});
+
+updatePan();
