@@ -696,9 +696,7 @@ export default function AppliedForceLayer() {
         >
           <input
             ref={inputRef}
-            type={editor.field === "magnitude" ? "number" : "text"}
-            min={editor.field === "magnitude" ? "0" : undefined}
-            step={editor.field === "magnitude" ? "any" : undefined}
+            type="text"
             inputMode={editor.field === "magnitude" ? "decimal" : "text"}
             aria-label={editor.field === "name" ? "Edit force name" : "Edit force magnitude"}
             value={editor.value}
