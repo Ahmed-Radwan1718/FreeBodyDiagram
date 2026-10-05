@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 type ForceTool = "applied" | "distributed";
@@ -9,6 +9,8 @@ const FORCE_OPTIONS: { type: ForceTool; label: string }[] = [
   { type: "applied", label: "Applied Force" },
   { type: "distributed", label: "Distributed Load" },
 ];
+
+const MIN_FORCE_PLACEMENT_DISTANCE_PX = 8;
 
 function ForceOptionIcon({ type }: { type: ForceTool }) {
   if (type === "distributed") {
@@ -37,6 +39,11 @@ export default function ForcesPanel() {
   const [open, setOpen] = useState(false);
   const [selectedTool, setSelectedTool] = useState<ForceTool | null>(null);
   const [sidebarRoot, setSidebarRoot] = useState<HTMLElement | null>(null);
+  const placementRef = useRef<{
+    pointerId: number;
+    x: number;
+    y: number;
+  } | null>(null);
 
   useEffect(() => {
     const sidebar = document.querySelector<HTMLElement>(".sidebar");
@@ -74,6 +81,68 @@ export default function ForcesPanel() {
       if (existingForcesSection) existingForcesSection.style.display = previousDisplay;
     };
   }, []);
+
+  useEffect(() => {
+    const canvas = document.querySelector<HTMLElement>(".canvas");
+    if (!canvas || selectedTool !== "applied") {
+      placementRef.current = null;
+      return;
+    }
+
+    function handlePointerDown(event: PointerEvent) {
+      if (event.button !== 0) return;
+      if (
+        event.target instanceof Element &&
+        (event.target.closest(".dimensionLabel") ||
+          event.target.closest("[data-force-vector]") ||
+          event.target.closest("[data-force-label]") ||
+          event.target.closest("[data-force-editor]"))
+      ) {
+        return;
+      }
+
+      placementRef.current = {
+        pointerId: event.pointerId,
+        x: event.clientX,
+        y: event.clientY,
+      };
+    }
+
+    function handlePointerUp(event: PointerEvent) {
+      const start = placementRef.current;
+      if (!start || start.pointerId !== event.pointerId) return;
+      placementRef.current = null;
+
+      const distance = Math.hypot(event.clientX - start.x, event.clientY - start.y);
+      if (distance < MIN_FORCE_PLACEMENT_DISTANCE_PX) return;
+
+      setSelectedTool(null);
+      setOpen(false);
+      delete document.documentElement.dataset.forceTool;
+      window.dispatchEvent(
+        new CustomEvent("forcetoolchange", {
+          detail: { tool: null },
+        }),
+      );
+    }
+
+    function handlePointerCancel(event: PointerEvent) {
+      if (placementRef.current?.pointerId === event.pointerId) {
+        placementRef.current = null;
+      }
+    }
+
+    canvas.addEventListener("pointerdown", handlePointerDown);
+    canvas.addEventListener("pointerup", handlePointerUp);
+    canvas.addEventListener("pointercancel", handlePointerCancel);
+
+    return () => {
+      canvas.removeEventListener("pointerdown", handlePointerDown);
+      canvas.removeEventListener("pointerup", handlePointerUp);
+      canvas.removeEventListener("pointercancel", handlePointerCancel);
+      placementRef.current = null;
+    };
+  }, [selectedTool]);
 
   function toggleTool(tool: ForceTool) {
     const nextTool = selectedTool === tool ? null : tool;
