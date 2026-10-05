@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import AngleLabelPositioning from "./AngleLabelPositioning";
 import AppliedForceLayer from "./AppliedForceLayer";
 import CalculationsPanel from "./CalculationsPanel";
 import CanvasModeToggle from "./CanvasModeToggle";
@@ -22,6 +23,7 @@ export default function RootLayout({
       <body>
         {children}
         <AppliedForceLayer />
+        <AngleLabelPositioning />
         <CanvasModeToggle />
         <DimensionPositioning />
         <ForcesPanel />
