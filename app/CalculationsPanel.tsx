@@ -163,8 +163,6 @@ export default function CalculationsPanel() {
   const validMass = Number.isFinite(massValue) && massValue > 0;
   const xEquation = componentEquation(forces, "x");
   const yEquation = componentEquation(forces, "y");
-  const xBalanced = Math.abs(totals.x) < 1e-6;
-  const yBalanced = Math.abs(totals.y) < 1e-6;
 
   if (!sidebarRoot) return null;
 
@@ -211,72 +209,71 @@ export default function CalculationsPanel() {
             </button>
           </div>
 
-          {mode === "dynamic" && (
-            <label className={styles.massField}>
-              <span>Mass</span>
-              <span className={styles.massInputWrap}>
-                <input
-                  type="number"
-                  min="0"
-                  step="any"
-                  value={mass}
-                  onChange={(event) => setMass(event.target.value)}
-                  aria-label="Mass in kilograms"
-                />
-                <span>kg</span>
-              </span>
-            </label>
-          )}
-
-          {forces.length === 0 ? (
-            <p className={styles.empty}>Add applied force vectors to the canvas to calculate their components.</p>
+          {mode === "static" ? (
+            <div className={styles.staticEquations}>
+              <div className={styles.staticEquation}>
+                ΣFₓ = {forces.length > 0 ? `${xEquation} = 0` : "0"}
+              </div>
+              <div className={styles.staticEquation}>
+                ΣFᵧ = {forces.length > 0 ? `${yEquation} = 0` : "0"}
+              </div>
+            </div>
           ) : (
             <>
-              <div className={styles.axisCard}>
-                <div className={styles.axisHeader}>
-                  <span>X direction</span>
-                  <strong>ΣFₓ = {formatNumber(totals.x)} N</strong>
-                </div>
-                <div className={styles.expression}>{xEquation}</div>
-                <div className={styles.governing}>
-                  {mode === "static" ? "ΣFₓ = 0" : "ΣFₓ = maₓ"}
-                </div>
-                {mode === "static" ? (
-                  <div className={styles.resultNote}>
-                    {xBalanced ? "Equilibrium satisfied" : `Residual: ${formatNumber(totals.x)} N`}
-                  </div>
-                ) : validMass ? (
-                  <div className={styles.resultNote}>
-                    aₓ = {formatNumber(totals.x / massValue)} m/s²
-                  </div>
-                ) : (
-                  <div className={styles.resultNote}>Enter a mass greater than 0 kg.</div>
-                )}
-              </div>
+              <label className={styles.massField}>
+                <span>Mass</span>
+                <span className={styles.massInputWrap}>
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    value={mass}
+                    onChange={(event) => setMass(event.target.value)}
+                    aria-label="Mass in kilograms"
+                  />
+                  <span>kg</span>
+                </span>
+              </label>
 
-              <div className={styles.axisCard}>
-                <div className={styles.axisHeader}>
-                  <span>Y direction</span>
-                  <strong>ΣFᵧ = {formatNumber(totals.y)} N</strong>
-                </div>
-                <div className={styles.expression}>{yEquation}</div>
-                <div className={styles.governing}>
-                  {mode === "static" ? "ΣFᵧ = 0" : "ΣFᵧ = maᵧ"}
-                </div>
-                {mode === "static" ? (
-                  <div className={styles.resultNote}>
-                    {yBalanced ? "Equilibrium satisfied" : `Residual: ${formatNumber(totals.y)} N`}
+              {forces.length === 0 ? (
+                <p className={styles.empty}>Add applied force vectors to the canvas to calculate their components.</p>
+              ) : (
+                <>
+                  <div className={styles.axisCard}>
+                    <div className={styles.axisHeader}>
+                      <span>X direction</span>
+                      <strong>ΣFₓ = {formatNumber(totals.x)} N</strong>
+                    </div>
+                    <div className={styles.expression}>{xEquation}</div>
+                    <div className={styles.governing}>ΣFₓ = maₓ</div>
+                    {validMass ? (
+                      <div className={styles.resultNote}>
+                        aₓ = {formatNumber(totals.x / massValue)} m/s²
+                      </div>
+                    ) : (
+                      <div className={styles.resultNote}>Enter a mass greater than 0 kg.</div>
+                    )}
                   </div>
-                ) : validMass ? (
-                  <div className={styles.resultNote}>
-                    aᵧ = {formatNumber(totals.y / massValue)} m/s²
-                  </div>
-                ) : (
-                  <div className={styles.resultNote}>Enter a mass greater than 0 kg.</div>
-                )}
-              </div>
 
-              <p className={styles.signConvention}>+x right · +y up</p>
+                  <div className={styles.axisCard}>
+                    <div className={styles.axisHeader}>
+                      <span>Y direction</span>
+                      <strong>ΣFᵧ = {formatNumber(totals.y)} N</strong>
+                    </div>
+                    <div className={styles.expression}>{yEquation}</div>
+                    <div className={styles.governing}>ΣFᵧ = maᵧ</div>
+                    {validMass ? (
+                      <div className={styles.resultNote}>
+                        aᵧ = {formatNumber(totals.y / massValue)} m/s²
+                      </div>
+                    ) : (
+                      <div className={styles.resultNote}>Enter a mass greater than 0 kg.</div>
+                    )}
+                  </div>
+
+                  <p className={styles.signConvention}>+x right · +y up</p>
+                </>
+              )}
             </>
           )}
         </div>
