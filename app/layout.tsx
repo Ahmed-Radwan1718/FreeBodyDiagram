@@ -3,6 +3,7 @@ import "./globals.css";
 import AppliedForceLayer from "./AppliedForceLayer";
 import CanvasModeToggle from "./CanvasModeToggle";
 import DimensionPositioning from "./DimensionPositioning";
+import ForceInlineEditorPolish from "./ForceInlineEditorPolish";
 import ForcesPanel from "./ForcesPanel";
 import UnitControl from "./UnitControl";
 
@@ -23,6 +24,7 @@ export default function RootLayout({
         <AppliedForceLayer />
         <CanvasModeToggle />
         <DimensionPositioning />
+        <ForceInlineEditorPolish />
         <ForcesPanel />
         <UnitControl />
       </body>
