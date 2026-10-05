@@ -44,6 +44,20 @@
   font-weight: 700;
 }
 
+.staticEquations {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 4px 2px;
+}
+
+.staticEquation {
+  color: #252b32;
+  font-family: "Times New Roman", Times, serif;
+  font-size: 16px;
+  line-height: 1.45;
+}
+
 .massField {
   display: flex;
   align-items: center;
