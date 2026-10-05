@@ -18,6 +18,7 @@ const POLYGON_CLOSE_RADIUS = 10;
 const POLYGON_MIN_AREA = 0.0001;
 
 type ShapeType = "rectangle" | "circle" | "polygon" | "triangle" | "particle";
+type DimensionAxis = "width" | "height";
 
 type Point = { x: number; y: number };
 
@@ -35,6 +36,12 @@ type PolygonDraft = {
   id: string;
   vertices: Point[];
   hover: Point | null;
+};
+
+type DimensionChangeDetail = {
+  shapeId: string;
+  axis: DimensionAxis;
+  valueInCentimeters: number;
 };
 
 function modulo(value: number, divisor: number) {
@@ -252,6 +259,50 @@ export default function Home() {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [polygonDraft, selectedCanvasShapeId]);
+
+  useEffect(() => {
+    function handleDimensionChange(event: Event) {
+      const detail = (event as CustomEvent<DimensionChangeDetail>).detail;
+      if (!detail) return;
+
+      const { shapeId, axis, valueInCentimeters } = detail;
+      if (
+        !shapeId ||
+        (axis !== "width" && axis !== "height") ||
+        !Number.isFinite(valueInCentimeters) ||
+        valueInCentimeters <= 0
+      ) {
+        return;
+      }
+
+      const nextSize = valueInCentimeters * BASE_GRID_SIZE;
+
+      setShapes((current) =>
+        current.map((shape) => {
+          if (shape.id !== shapeId) return shape;
+
+          if (shape.type === "circle") {
+            const centerX = shape.x + shape.width / 2;
+            const centerY = shape.y + shape.height / 2;
+            return {
+              ...shape,
+              x: centerX - nextSize / 2,
+              y: centerY - nextSize / 2,
+              width: nextSize,
+              height: nextSize,
+            };
+          }
+
+          return axis === "width"
+            ? { ...shape, width: nextSize }
+            : { ...shape, height: nextSize };
+        }),
+      );
+    }
+
+    window.addEventListener("dimensionchange", handleDimensionChange);
+    return () => window.removeEventListener("dimensionchange", handleDimensionChange);
+  }, []);
 
   function getWorldPoint(event: ReactPointerEvent<HTMLElement>) {
     const rect = event.currentTarget.getBoundingClientRect();
@@ -617,8 +668,10 @@ export default function Home() {
     const verticalArrow = Math.min(DIMENSION_ARROW_SIZE, Math.max(3, height / 4));
     const widthLabel = formatDimension(shape.width);
     const heightLabel = formatDimension(shape.height);
-    const widthLabelWidth = Math.max(28, widthLabel.length * 7 + 12);
-    const heightLabelWidth = Math.max(28, heightLabel.length * 7 + 12);
+    const widthFullLabel = `${widthLabel} · cm`;
+    const heightFullLabel = `${heightLabel} · cm`;
+    const widthLabelWidth = Math.max(44, widthFullLabel.length * 7 + 14);
+    const heightLabelWidth = Math.max(44, heightFullLabel.length * 7 + 14);
     const horizontalShapeY = horizontalBelow ? bottom : top;
     const horizontalGapDirection = horizontalBelow ? 1 : -1;
 
@@ -630,7 +683,17 @@ export default function Home() {
         <polygon className="dimensionArrow" points={`${left},${horizontalY} ${left + horizontalArrow},${horizontalY - 3.5} ${left + horizontalArrow},${horizontalY + 3.5}`} />
         <polygon className="dimensionArrow" points={`${right},${horizontalY} ${right - horizontalArrow},${horizontalY - 3.5} ${right - horizontalArrow},${horizontalY + 3.5}`} />
         <rect className="dimensionLabelBackground" x={centerX - widthLabelWidth / 2} y={horizontalY - 9} width={widthLabelWidth} height={18} rx={2} />
-        <text className="dimensionLabel" x={centerX} y={horizontalY}>{widthLabel}</text>
+        <text
+          className="dimensionLabel"
+          x={centerX}
+          y={horizontalY}
+          data-shape-id={shape.id}
+          data-dimension-axis="width"
+        >
+          <tspan className="dimensionValue">{widthLabel}</tspan>
+          <tspan className="dimensionSeparator"> · </tspan>
+          <tspan className="dimensionUnit">cm</tspan>
+        </text>
 
         <line className="dimensionExtension" x1={right + 4} y1={top} x2={verticalX + 5} y2={top} />
         <line className="dimensionExtension" x1={right + 4} y1={bottom} x2={verticalX + 5} y2={bottom} />
@@ -638,7 +701,17 @@ export default function Home() {
         <polygon className="dimensionArrow" points={`${verticalX},${top} ${verticalX - 3.5},${top + verticalArrow} ${verticalX + 3.5},${top + verticalArrow}`} />
         <polygon className="dimensionArrow" points={`${verticalX},${bottom} ${verticalX - 3.5},${bottom - verticalArrow} ${verticalX + 3.5},${bottom - verticalArrow}`} />
         <rect className="dimensionLabelBackground" x={verticalX - heightLabelWidth / 2} y={centerY - 9} width={heightLabelWidth} height={18} rx={2} />
-        <text className="dimensionLabel" x={verticalX} y={centerY}>{heightLabel}</text>
+        <text
+          className="dimensionLabel"
+          x={verticalX}
+          y={centerY}
+          data-shape-id={shape.id}
+          data-dimension-axis="height"
+        >
+          <tspan className="dimensionValue">{heightLabel}</tspan>
+          <tspan className="dimensionSeparator"> · </tspan>
+          <tspan className="dimensionUnit">cm</tspan>
+        </text>
       </g>
     );
   }
