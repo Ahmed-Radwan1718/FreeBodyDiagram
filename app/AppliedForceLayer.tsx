@@ -1035,7 +1035,7 @@ export default function AppliedForceLayer() {
                       pointerEvents={isDraft ? "none" : "auto"}
                       style={{
                         cursor: isDraft ? "default" : "pointer",
-                        textDecoration: isDraft ? "none" : "underline",
+                        textDecorationLine: isDraft ? "none" : "underline",
                         textDecorationThickness: 0.7,
                         textUnderlineOffset: 2,
                       }}
