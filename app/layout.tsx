@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import AppliedForceLayer from "./AppliedForceLayer";
 import CanvasModeToggle from "./CanvasModeToggle";
 import DimensionPositioning from "./DimensionPositioning";
 import ForcesPanel from "./ForcesPanel";
@@ -19,6 +20,7 @@ export default function RootLayout({
     <html lang="en">
       <body>
         {children}
+        <AppliedForceLayer />
         <CanvasModeToggle />
         <DimensionPositioning />
         <ForcesPanel />
