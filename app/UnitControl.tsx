@@ -196,7 +196,7 @@ export default function UnitControl() {
     if (!editor) return;
     inputRef.current?.focus();
     inputRef.current?.select();
-  }, [editor]);
+  }, [editor?.shapeId, editor?.axis]);
 
   useEffect(() => {
     if (!editor) return;
