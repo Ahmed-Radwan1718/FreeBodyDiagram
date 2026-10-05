@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import UnitControl from "./UnitControl";
 
 export const metadata: Metadata = {
   title: "Free Body Diagram",
@@ -13,7 +14,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        {children}
+        <UnitControl />
+      </body>
     </html>
   );
 }
