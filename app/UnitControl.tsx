@@ -128,7 +128,12 @@ export default function UnitControl() {
   const [unit, setUnit] = useState<LengthUnit>("cm");
   const [menuPosition, setMenuPosition] = useState<MenuPosition | null>(null);
   const [editor, setEditor] = useState<DimensionEditor | null>(null);
+  const [portalRoot, setPortalRoot] = useState<HTMLElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    setPortalRoot(document.body);
+  }, []);
 
   useEffect(() => {
     if (!editor) return;
@@ -269,6 +274,8 @@ export default function UnitControl() {
     setEditor(null);
   }
 
+  if (!portalRoot) return null;
+
   return createPortal(
     <>
       {menuPosition && (
@@ -336,6 +343,6 @@ export default function UnitControl() {
         </div>
       )}
     </>,
-    document.body,
+    portalRoot,
   );
 }
