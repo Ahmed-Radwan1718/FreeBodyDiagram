@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  useEffect,
   useRef,
   useState,
   type CSSProperties,
@@ -146,15 +147,12 @@ export default function Home() {
   const [isMovingShape, setIsMovingShape] = useState(false);
   const [shapesOpen, setShapesOpen] = useState(false);
   const [selectedShape, setSelectedShape] = useState<ShapeType | null>(null);
+  const [selectedCanvasShapeId, setSelectedCanvasShapeId] = useState<string | null>(null);
   const [shapes, setShapes] = useState<CanvasShape[]>([]);
   const [draftShape, setDraftShape] = useState<CanvasShape | null>(null);
 
   const nextShapeId = useRef(1);
-  const panRef = useRef<{
-    pointerId: number;
-    x: number;
-    y: number;
-  } | null>(null);
+  const panRef = useRef<{ pointerId: number; x: number; y: number } | null>(null);
   const drawRef = useRef<{
     pointerId: number;
     type: Exclude<ShapeType, "particle">;
@@ -182,6 +180,32 @@ export default function Home() {
     "--grid-x": `${modulo(camera.x, majorGridSize)}px`,
     "--grid-y": `${modulo(camera.y, majorGridSize)}px`,
   } as CSSProperties;
+
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (!selectedCanvasShapeId) return;
+      if (event.key !== "Delete" && event.key !== "Backspace") return;
+
+      const target = event.target as HTMLElement | null;
+      if (
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        target instanceof HTMLSelectElement ||
+        target?.isContentEditable
+      ) {
+        return;
+      }
+
+      event.preventDefault();
+      setShapes((current) =>
+        current.filter((shape) => shape.id !== selectedCanvasShapeId),
+      );
+      setSelectedCanvasShapeId(null);
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [selectedCanvasShapeId]);
 
   function getWorldPoint(event: ReactPointerEvent<HTMLElement>) {
     const rect = event.currentTarget.getBoundingClientRect();
@@ -215,6 +239,7 @@ export default function Home() {
         height: PARTICLE_SIZE,
       };
       setShapes((current) => [...current, particle]);
+      setSelectedCanvasShapeId(particle.id);
       finishShapeTool();
       return;
     }
@@ -239,6 +264,7 @@ export default function Home() {
       .find((shape) => shapeContainsPoint(shape, point));
 
     if (hitShape) {
+      setSelectedCanvasShapeId(hitShape.id);
       moveRef.current = {
         pointerId: event.pointerId,
         id: hitShape.id,
@@ -249,6 +275,7 @@ export default function Home() {
       return;
     }
 
+    setSelectedCanvasShapeId(null);
     panRef.current = {
       pointerId: event.pointerId,
       x: event.clientX,
@@ -277,15 +304,10 @@ export default function Home() {
     const moving = moveRef.current;
     if (moving && moving.pointerId === event.pointerId) {
       const point = getWorldPoint(event);
-
       setShapes((current) =>
         current.map((shape) =>
           shape.id === moving.id
-            ? {
-                ...shape,
-                x: point.x - moving.offsetX,
-                y: point.y - moving.offsetY,
-              }
+            ? { ...shape, x: point.x - moving.offsetX, y: point.y - moving.offsetY }
             : shape,
         ),
       );
@@ -297,7 +319,6 @@ export default function Home() {
 
     const dx = event.clientX - pan.x;
     const dy = event.clientY - pan.y;
-
     pan.x = event.clientX;
     pan.y = event.clientY;
 
@@ -316,6 +337,7 @@ export default function Home() {
 
       if (isLargeEnough) {
         setShapes((current) => [...current, shape]);
+        setSelectedCanvasShapeId(shape.id);
         finishShapeTool();
       }
 
@@ -346,7 +368,6 @@ export default function Home() {
     const rect = event.currentTarget.getBoundingClientRect();
     const cursorX = event.clientX - rect.left;
     const cursorY = event.clientY - rect.top;
-
     const deltaMultiplier =
       event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? rect.height : 1;
     const normalizedDelta = event.deltaY * deltaMultiplier;
@@ -361,11 +382,13 @@ export default function Home() {
   }
 
   function toggleShape(shape: ShapeType) {
+    setSelectedCanvasShapeId(null);
     setSelectedShape((current) => (current === shape ? null : shape));
   }
 
   function renderShape(shape: CanvasShape, isDraft = false) {
-    const className = `drawnShape drawn${shape.type[0].toUpperCase()}${shape.type.slice(1)}${isDraft ? " isDraft" : ""}`;
+    const selected = !isDraft && shape.id === selectedCanvasShapeId;
+    const className = `drawnShape drawn${shape.type[0].toUpperCase()}${shape.type.slice(1)}${isDraft ? " isDraft" : ""}${selected ? " isCanvasSelected" : ""}`;
 
     if (shape.type === "circle" || shape.type === "particle") {
       return (
@@ -438,14 +461,8 @@ export default function Home() {
       ? bottom + DIMENSION_OFFSET
       : top - DIMENSION_OFFSET;
     const verticalX = right + DIMENSION_OFFSET;
-    const horizontalArrow = Math.min(
-      DIMENSION_ARROW_SIZE,
-      Math.max(3, width / 4),
-    );
-    const verticalArrow = Math.min(
-      DIMENSION_ARROW_SIZE,
-      Math.max(3, height / 4),
-    );
+    const horizontalArrow = Math.min(DIMENSION_ARROW_SIZE, Math.max(3, width / 4));
+    const verticalArrow = Math.min(DIMENSION_ARROW_SIZE, Math.max(3, height / 4));
     const widthLabel = formatDimension(shape.width);
     const heightLabel = formatDimension(shape.height);
     const widthLabelWidth = Math.max(28, widthLabel.length * 7 + 12);
@@ -455,87 +472,21 @@ export default function Home() {
 
     return (
       <g key={`${shape.id}-dimensions`} className="dimensionAnnotation">
-        <line
-          className="dimensionExtension"
-          x1={left}
-          y1={horizontalShapeY + horizontalGapDirection * 4}
-          x2={left}
-          y2={horizontalY + horizontalGapDirection * 5}
-        />
-        <line
-          className="dimensionExtension"
-          x1={right}
-          y1={horizontalShapeY + horizontalGapDirection * 4}
-          x2={right}
-          y2={horizontalY + horizontalGapDirection * 5}
-        />
-        <line
-          className="dimensionLine"
-          x1={left}
-          y1={horizontalY}
-          x2={right}
-          y2={horizontalY}
-        />
-        <polygon
-          className="dimensionArrow"
-          points={`${left},${horizontalY} ${left + horizontalArrow},${horizontalY - 3.5} ${left + horizontalArrow},${horizontalY + 3.5}`}
-        />
-        <polygon
-          className="dimensionArrow"
-          points={`${right},${horizontalY} ${right - horizontalArrow},${horizontalY - 3.5} ${right - horizontalArrow},${horizontalY + 3.5}`}
-        />
-        <rect
-          className="dimensionLabelBackground"
-          x={centerX - widthLabelWidth / 2}
-          y={horizontalY - 9}
-          width={widthLabelWidth}
-          height={18}
-          rx={2}
-        />
-        <text className="dimensionLabel" x={centerX} y={horizontalY}>
-          {widthLabel}
-        </text>
+        <line className="dimensionExtension" x1={left} y1={horizontalShapeY + horizontalGapDirection * 4} x2={left} y2={horizontalY + horizontalGapDirection * 5} />
+        <line className="dimensionExtension" x1={right} y1={horizontalShapeY + horizontalGapDirection * 4} x2={right} y2={horizontalY + horizontalGapDirection * 5} />
+        <line className="dimensionLine" x1={left} y1={horizontalY} x2={right} y2={horizontalY} />
+        <polygon className="dimensionArrow" points={`${left},${horizontalY} ${left + horizontalArrow},${horizontalY - 3.5} ${left + horizontalArrow},${horizontalY + 3.5}`} />
+        <polygon className="dimensionArrow" points={`${right},${horizontalY} ${right - horizontalArrow},${horizontalY - 3.5} ${right - horizontalArrow},${horizontalY + 3.5}`} />
+        <rect className="dimensionLabelBackground" x={centerX - widthLabelWidth / 2} y={horizontalY - 9} width={widthLabelWidth} height={18} rx={2} />
+        <text className="dimensionLabel" x={centerX} y={horizontalY}>{widthLabel}</text>
 
-        <line
-          className="dimensionExtension"
-          x1={right + 4}
-          y1={top}
-          x2={verticalX + 5}
-          y2={top}
-        />
-        <line
-          className="dimensionExtension"
-          x1={right + 4}
-          y1={bottom}
-          x2={verticalX + 5}
-          y2={bottom}
-        />
-        <line
-          className="dimensionLine"
-          x1={verticalX}
-          y1={top}
-          x2={verticalX}
-          y2={bottom}
-        />
-        <polygon
-          className="dimensionArrow"
-          points={`${verticalX},${top} ${verticalX - 3.5},${top + verticalArrow} ${verticalX + 3.5},${top + verticalArrow}`}
-        />
-        <polygon
-          className="dimensionArrow"
-          points={`${verticalX},${bottom} ${verticalX - 3.5},${bottom - verticalArrow} ${verticalX + 3.5},${bottom - verticalArrow}`}
-        />
-        <rect
-          className="dimensionLabelBackground"
-          x={verticalX - heightLabelWidth / 2}
-          y={centerY - 9}
-          width={heightLabelWidth}
-          height={18}
-          rx={2}
-        />
-        <text className="dimensionLabel" x={verticalX} y={centerY}>
-          {heightLabel}
-        </text>
+        <line className="dimensionExtension" x1={right + 4} y1={top} x2={verticalX + 5} y2={top} />
+        <line className="dimensionExtension" x1={right + 4} y1={bottom} x2={verticalX + 5} y2={bottom} />
+        <line className="dimensionLine" x1={verticalX} y1={top} x2={verticalX} y2={bottom} />
+        <polygon className="dimensionArrow" points={`${verticalX},${top} ${verticalX - 3.5},${top + verticalArrow} ${verticalX + 3.5},${top + verticalArrow}`} />
+        <polygon className="dimensionArrow" points={`${verticalX},${bottom} ${verticalX - 3.5},${bottom - verticalArrow} ${verticalX + 3.5},${bottom - verticalArrow}`} />
+        <rect className="dimensionLabelBackground" x={verticalX - heightLabelWidth / 2} y={centerY - 9} width={heightLabelWidth} height={18} rx={2} />
+        <text className="dimensionLabel" x={verticalX} y={centerY}>{heightLabel}</text>
       </g>
     );
   }
@@ -576,11 +527,7 @@ export default function Home() {
               <circle cx="15.5" cy="14.5" r="5.5" />
             </svg>
             <span className="sectionLabel">Shapes</span>
-            <svg
-              className={`sectionChevron${shapesOpen ? " isOpen" : ""}`}
-              viewBox="0 0 20 20"
-              aria-hidden="true"
-            >
+            <svg className={`sectionChevron${shapesOpen ? " isOpen" : ""}`} viewBox="0 0 20 20" aria-hidden="true">
               <path d="M6 8l4 4 4-4" />
             </svg>
           </button>
