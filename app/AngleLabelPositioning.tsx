@@ -24,6 +24,9 @@ function updateAngleLabels() {
   const labels = document.querySelectorAll<SVGTextElement>("text[data-force-angle]");
 
   labels.forEach((label) => {
+    const originMarker = label.parentElement?.querySelector<SVGCircleElement>("circle");
+    if (originMarker) originMarker.setAttribute("display", "none");
+
     const angle = angleValue(label);
     if (angle === null) return;
 
