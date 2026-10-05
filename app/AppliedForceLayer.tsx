@@ -60,6 +60,8 @@ type ForceUnitMenu = {
 };
 
 const MIN_FORCE_LENGTH_PX = 8;
+const MIN_FORCE_DISPLAY_LENGTH_PX = 60;
+const MAX_FORCE_DISPLAY_LENGTH_PX = 300;
 const ARROW_HEAD_LENGTH_PX = 11;
 const ARROW_HEAD_HALF_WIDTH_PX = 5;
 const FORCE_LABEL_FONT_SIZE_PX = 12;
@@ -96,6 +98,29 @@ function parseTransform(value: string | null): ViewTransform {
 
 function vectorLength(force: ForceVector) {
   return Math.hypot(force.end.x - force.start.x, force.end.y - force.start.y);
+}
+
+function forceDisplayLengthPx(magnitudeInNewtons: number) {
+  return Math.min(
+    MAX_FORCE_DISPLAY_LENGTH_PX,
+    Math.max(MIN_FORCE_DISPLAY_LENGTH_PX, magnitudeInNewtons),
+  );
+}
+
+function clampForceDisplayLength(force: ForceVector, scale: number): ForceVector {
+  const dx = force.end.x - force.start.x;
+  const dy = force.end.y - force.start.y;
+  const length = Math.hypot(dx, dy);
+  if (length <= 0 || !Number.isFinite(scale) || scale <= 0) return force;
+
+  const nextLength = forceDisplayLengthPx(force.magnitude) / scale;
+  return {
+    ...force,
+    end: {
+      x: force.start.x + (dx / length) * nextLength,
+      y: force.start.y + (dy / length) * nextLength,
+    },
+  };
 }
 
 function normalizeAngle(angle: number) {
@@ -504,11 +529,14 @@ export default function AppliedForceLayer() {
       const end = toWorldPoint(event);
       const screenLength =
         Math.hypot(end.x - activeForce.start.x, end.y - activeForce.start.y) * view.scale;
-      const completed = {
-        ...activeForce,
-        end,
-        magnitude: Math.max(1, Math.round(screenLength)),
-      };
+      const completed = clampForceDisplayLength(
+        {
+          ...activeForce,
+          end,
+          magnitude: Math.max(1, Math.round(screenLength)),
+        },
+        view.scale,
+      );
 
       if (screenLength >= MIN_FORCE_LENGTH_PX) {
         setForces((current) => [...current, completed]);
@@ -838,7 +866,7 @@ export default function AppliedForceLayer() {
     const option = forceUnitOption(forceUnit);
     const nextMagnitude = enteredMagnitude * option.newtonsPerUnit;
     const length = vectorLength(force);
-    if (length <= 0 || force.magnitude <= 0) {
+    if (length <= 0) {
       setForces((current) =>
         current.map((candidate) =>
           candidate.id === force.id
@@ -852,8 +880,7 @@ export default function AppliedForceLayer() {
 
     const dx = force.end.x - force.start.x;
     const dy = force.end.y - force.start.y;
-    const unitsPerNewton = length / force.magnitude;
-    const nextLength = unitsPerNewton * nextMagnitude;
+    const nextLength = forceDisplayLengthPx(nextMagnitude) / view.scale;
 
     setForces((current) =>
       current.map((candidate) =>
