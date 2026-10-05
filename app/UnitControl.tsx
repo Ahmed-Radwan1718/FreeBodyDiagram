@@ -24,6 +24,7 @@ type DimensionEditor = {
   left: number;
   top: number;
   width: number;
+  height: number;
   shapeId: string;
   axis: DimensionAxis;
   value: string;
@@ -198,6 +199,30 @@ export default function UnitControl() {
   }, [editor]);
 
   useEffect(() => {
+    if (!editor) return;
+
+    const drawingLayer = document.querySelector<SVGSVGElement>(".drawingLayer");
+    if (!drawingLayer) return;
+
+    const label = Array.from(
+      drawingLayer.querySelectorAll<SVGTextElement>(".dimensionLabel"),
+    ).find(
+      (candidate) =>
+        candidate.dataset.shapeId === editor.shapeId &&
+        candidate.dataset.dimensionAxis === editor.axis,
+    );
+    const valueElement = label?.querySelector<SVGTSpanElement>(".dimensionValue");
+    if (!valueElement) return;
+
+    const previousVisibility = valueElement.style.visibility;
+    valueElement.style.visibility = "hidden";
+
+    return () => {
+      valueElement.style.visibility = previousVisibility;
+    };
+  }, [editor?.shapeId, editor?.axis]);
+
+  useEffect(() => {
     const drawingLayer = document.querySelector<SVGSVGElement>(".drawingLayer");
     if (!drawingLayer) return;
 
@@ -239,12 +264,21 @@ export default function UnitControl() {
 
       const rect = valueElement.getBoundingClientRect();
       const value = valueElement.textContent?.trim() ?? "";
-      const width = Math.max(62, Math.min(110, rect.width + 22));
-      const left = Math.max(8, Math.min(rect.left - 8, window.innerWidth - width - 8));
-      const top = Math.max(8, Math.min(rect.top - 7, window.innerHeight - 38));
+      const width = Math.max(24, rect.width + 2);
+      const height = Math.max(16, rect.height);
+      const left = Math.max(2, Math.min(rect.left - 1, window.innerWidth - width - 2));
+      const top = Math.max(2, Math.min(rect.top, window.innerHeight - height - 2));
 
       setMenuPosition(null);
-      setEditor({ left, top, width, shapeId: metadata.shapeId, axis: metadata.axis, value });
+      setEditor({
+        left,
+        top,
+        width,
+        height,
+        shapeId: metadata.shapeId,
+        axis: metadata.axis,
+        value,
+      });
     }
 
     function handleDimensionPointerDown(event: PointerEvent) {
@@ -367,7 +401,18 @@ export default function UnitControl() {
         <div
           className={styles.dimensionEditor}
           data-dimension-editor
-          style={{ left: editor.left, top: editor.top, width: editor.width }}
+          style={{
+            left: editor.left,
+            top: editor.top,
+            width: editor.width,
+            height: editor.height,
+            display: "block",
+            overflow: "visible",
+            border: 0,
+            borderRadius: 0,
+            background: "transparent",
+            boxShadow: "none",
+          }}
           onPointerDown={(event) => event.stopPropagation()}
         >
           <input
@@ -379,6 +424,21 @@ export default function UnitControl() {
             inputMode="decimal"
             aria-label={`Edit ${editor.axis}`}
             value={editor.value}
+            style={{
+              width: "100%",
+              height: "100%",
+              padding: 0,
+              border: 0,
+              outline: 0,
+              background: "transparent",
+              color: "#3f4852",
+              fontFamily: "Arial, Helvetica, sans-serif",
+              fontSize: 12,
+              fontWeight: 600,
+              lineHeight: 1,
+              textAlign: "center",
+              boxShadow: "none",
+            }}
             onChange={(event) =>
               setEditor((current) =>
                 current ? { ...current, value: event.target.value } : current,
@@ -395,7 +455,6 @@ export default function UnitControl() {
               }
             }}
           />
-          <span className={styles.editorUnit}>{unit}</span>
         </div>
       )}
     </>,
