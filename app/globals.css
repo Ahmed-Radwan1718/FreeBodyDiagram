@@ -252,6 +252,11 @@ button {
   stroke-width: 1.8;
 }
 
+.drawnShape.isCanvasSelected {
+  stroke: #20242a;
+  stroke-width: 2.8;
+}
+
 .drawnShape.isDraft {
   fill: #f5f6f7;
   stroke-dasharray: 6 4;
