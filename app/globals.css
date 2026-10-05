@@ -111,6 +111,10 @@ button {
   stroke-linejoin: round;
 }
 
+.sidebarSection:last-of-type .sectionIcon circle {
+  display: none;
+}
+
 .sectionChevron {
   width: 14px;
   height: 14px;
