@@ -304,6 +304,10 @@ button {
   dominant-baseline: central;
 }
 
+[data-force-unit] {
+  text-decoration-line: none !important;
+}
+
 @media (max-width: 720px) {
   .sidebar {
     width: 220px;
