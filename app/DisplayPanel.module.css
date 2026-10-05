@@ -1,0 +1,64 @@
+.options {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-top: 2px;
+}
+
+.row {
+  width: 100%;
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 2px;
+  border: 0;
+  background: transparent;
+  color: #555f6b;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.row:hover {
+  color: #20242a;
+}
+
+.row:focus-visible {
+  outline: 2px solid #aeb4bd;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.switch {
+  position: relative;
+  width: 30px;
+  height: 17px;
+  flex: 0 0 30px;
+  border: 1px solid #cbd0d6;
+  border-radius: 999px;
+  background: #eef0f2;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+
+.switch.enabled {
+  border-color: #6d7681;
+  background: #6d7681;
+}
+
+.knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
+  transition: transform 120ms ease;
+}
+
+.switch.enabled .knob {
+  transform: translateX(13px);
+}
