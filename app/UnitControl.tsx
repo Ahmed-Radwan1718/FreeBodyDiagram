@@ -39,6 +39,7 @@ const UNIT_OPTIONS: UnitOption[] = [
 
 const MENU_WIDTH = 160;
 const MENU_HEIGHT = 188;
+const DIMENSION_LINE_LABEL_PADDING = 12;
 
 function getUnitOption(unit: LengthUnit) {
   return UNIT_OPTIONS.find((option) => option.value === unit) ?? UNIT_OPTIONS[0];
@@ -67,6 +68,59 @@ function getDimensionMetadata(label: SVGTextElement) {
   const axis = label.dataset.dimensionAxis;
   if (!shapeId || (axis !== "width" && axis !== "height")) return null;
   return { shapeId, axis: axis as DimensionAxis };
+}
+
+function updateDimensionLineGap(label: SVGTextElement) {
+  const group = label.parentElement;
+  const axis = label.dataset.dimensionAxis;
+  if (!group || (axis !== "width" && axis !== "height")) return;
+
+  const line = Array.from(group.querySelectorAll<SVGLineElement>(".dimensionLine")).find(
+    (candidate) => {
+      const x1 = Number(candidate.getAttribute("x1"));
+      const y1 = Number(candidate.getAttribute("y1"));
+      const x2 = Number(candidate.getAttribute("x2"));
+      const y2 = Number(candidate.getAttribute("y2"));
+      if (![x1, y1, x2, y2].every(Number.isFinite)) return false;
+
+      return axis === "width"
+        ? Math.abs(y1 - y2) < 0.01 && Math.abs(x2 - x1) > 0
+        : Math.abs(x1 - x2) < 0.01 && Math.abs(y2 - y1) > 0;
+    },
+  );
+
+  if (!line) return;
+
+  const x1 = Number(line.getAttribute("x1"));
+  const y1 = Number(line.getAttribute("y1"));
+  const x2 = Number(line.getAttribute("x2"));
+  const y2 = Number(line.getAttribute("y2"));
+  const lineLength = axis === "width" ? Math.abs(x2 - x1) : Math.abs(y2 - y1);
+  if (!Number.isFinite(lineLength) || lineLength <= 0) return;
+
+  let labelSize: number;
+  try {
+    const bounds = label.getBBox();
+    labelSize = axis === "width" ? bounds.width : bounds.height;
+  } catch {
+    return;
+  }
+
+  const gapLength = Math.min(
+    lineLength,
+    Math.max(0, labelSize + DIMENSION_LINE_LABEL_PADDING),
+  );
+
+  if (gapLength >= lineLength) {
+    line.setAttribute("stroke-dasharray", `0 ${lineLength}`);
+    return;
+  }
+
+  const sideLength = (lineLength - gapLength) / 2;
+  line.setAttribute(
+    "stroke-dasharray",
+    `${sideLength} ${gapLength} ${sideLength} 0`,
+  );
 }
 
 function updateDimensionLabels(unit: LengthUnit) {
@@ -121,6 +175,8 @@ function updateDimensionLabels(unit: LengthUnit) {
         if (background.getAttribute("x") !== nextX) background.setAttribute("x", nextX);
       }
     }
+
+    updateDimensionLineGap(label);
   });
 }
 
