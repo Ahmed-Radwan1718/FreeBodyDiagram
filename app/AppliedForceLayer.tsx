@@ -20,6 +20,16 @@ type ForceVector = {
 type ForceTool = "applied" | "distributed" | null;
 type ViewTransform = { x: number; y: number; scale: number; raw: string };
 type ForceMove = { id: string; pointerId: number; previousPoint: Point };
+type ForceLabelField = "name" | "magnitude";
+type InlineEditor = {
+  forceId: string;
+  field: ForceLabelField;
+  value: string;
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+};
 
 const MIN_FORCE_LENGTH_PX = 8;
 const ARROW_HEAD_LENGTH_PX = 11;
@@ -152,6 +162,7 @@ export default function AppliedForceLayer() {
   const [forces, setForces] = useState<ForceVector[]>([]);
   const [draft, setDraft] = useState<ForceVector | null>(null);
   const [selectedForceId, setSelectedForceId] = useState<string | null>(null);
+  const [editor, setEditor] = useState<InlineEditor | null>(null);
   const [view, setView] = useState<ViewTransform>({
     x: 0,
     y: 0,
@@ -160,6 +171,14 @@ export default function AppliedForceLayer() {
   });
   const nextForceNumber = useRef(1);
   const moveRef = useRef<ForceMove | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const cancelEditorRef = useRef(false);
+
+  useEffect(() => {
+    if (!editor) return;
+    inputRef.current?.focus();
+    inputRef.current?.select();
+  }, [editor?.forceId, editor?.field]);
 
   useEffect(() => {
     const canvas = document.querySelector<HTMLElement>(".canvas");
@@ -183,7 +202,13 @@ export default function AppliedForceLayer() {
 
     function clearSelectionOnCanvas(event: PointerEvent) {
       if (!(event.target instanceof Element)) return;
-      if (event.target.closest("[data-force-vector]")) return;
+      if (
+        event.target.closest("[data-force-vector]") ||
+        event.target.closest("[data-force-label]") ||
+        event.target.closest("[data-force-editor]")
+      ) {
+        return;
+      }
       setSelectedForceId(null);
     }
 
@@ -218,7 +243,10 @@ export default function AppliedForceLayer() {
       if (event.button !== 0 || activePointerId !== null) return;
       if (
         event.target instanceof Element &&
-        (event.target.closest(".dimensionLabel") || event.target.closest("[data-force-vector]"))
+        (event.target.closest(".dimensionLabel") ||
+          event.target.closest("[data-force-vector]") ||
+          event.target.closest("[data-force-label]") ||
+          event.target.closest("[data-force-editor]"))
       ) {
         return;
       }
@@ -324,6 +352,7 @@ export default function AppliedForceLayer() {
       event.preventDefault();
       setForces((current) => current.filter((force) => force.id !== selectedForceId));
       setSelectedForceId(null);
+      setEditor(null);
     }
 
     window.addEventListener("keydown", handleDelete);
@@ -346,6 +375,7 @@ export default function AppliedForceLayer() {
 
     event.preventDefault();
     event.stopPropagation();
+    setEditor(null);
     setSelectedForceId(force.id);
     moveRef.current = {
       id: force.id,
@@ -394,133 +424,315 @@ export default function AppliedForceLayer() {
     }
   }
 
+  function beginInlineEdit(
+    force: ForceVector,
+    field: ForceLabelField,
+    event: ReactPointerEvent<SVGTSpanElement>,
+  ) {
+    if (!canvasRoot || event.button !== 0) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    cancelEditorRef.current = false;
+    setSelectedForceId(force.id);
+
+    const rect = event.currentTarget.getBoundingClientRect();
+    const canvasRect = canvasRoot.getBoundingClientRect();
+    const value = field === "name" ? force.name : formatNumber(force.magnitude);
+
+    setEditor({
+      forceId: force.id,
+      field,
+      value,
+      left: rect.left - canvasRect.left - 1,
+      top: rect.top - canvasRect.top,
+      width: Math.max(24, rect.width + 2),
+      height: Math.max(16, rect.height),
+    });
+  }
+
+  function commitEditor() {
+    if (!editor) return;
+    if (cancelEditorRef.current) {
+      cancelEditorRef.current = false;
+      return;
+    }
+
+    const force = forces.find((candidate) => candidate.id === editor.forceId);
+    if (!force) {
+      setEditor(null);
+      return;
+    }
+
+    if (editor.field === "name") {
+      const nextName = editor.value.trim();
+      if (nextName) {
+        setForces((current) =>
+          current.map((candidate) =>
+            candidate.id === force.id ? { ...candidate, name: nextName } : candidate,
+          ),
+        );
+      }
+      setEditor(null);
+      return;
+    }
+
+    const nextMagnitude = Number(editor.value);
+    if (!Number.isFinite(nextMagnitude) || nextMagnitude <= 0) {
+      setEditor(null);
+      return;
+    }
+
+    const length = vectorLength(force);
+    if (length <= 0 || force.magnitude <= 0) {
+      setForces((current) =>
+        current.map((candidate) =>
+          candidate.id === force.id
+            ? { ...candidate, magnitude: nextMagnitude }
+            : candidate,
+        ),
+      );
+      setEditor(null);
+      return;
+    }
+
+    const dx = force.end.x - force.start.x;
+    const dy = force.end.y - force.start.y;
+    const unitsPerNewton = length / force.magnitude;
+    const nextLength = unitsPerNewton * nextMagnitude;
+
+    setForces((current) =>
+      current.map((candidate) =>
+        candidate.id === force.id
+          ? {
+              ...candidate,
+              magnitude: nextMagnitude,
+              end: {
+                x: candidate.start.x + (dx / length) * nextLength,
+                y: candidate.start.y + (dy / length) * nextLength,
+              },
+            }
+          : candidate,
+      ),
+    );
+    setEditor(null);
+  }
+
   const vectors = useMemo(() => (draft ? [...forces, draft] : forces), [forces, draft]);
 
   if (!canvasRoot) return null;
 
   return createPortal(
-    <svg
-      aria-hidden="true"
-      style={{
-        position: "absolute",
-        inset: 0,
-        width: "100%",
-        height: "100%",
-        overflow: "visible",
-        pointerEvents: "none",
-        zIndex: 2,
-      }}
-    >
-      <g transform={view.raw}>
-        {vectors.map((force) => {
-          const isDraft = draft?.id === force.id;
-          const isSelected = !isDraft && selectedForceId === force.id;
-          const labelText = `${force.name} = ${formatNumber(force.magnitude)} N`;
-          const label = forceLabelPosition(force, view.scale, labelText);
-          const angleInfo = isSelected ? angleArc(force, view.scale) : null;
-          const referenceLength = ANGLE_REFERENCE_LENGTH_PX / view.scale;
-          const arrow = arrowGeometry(force.start, force.end, view.scale);
+    <>
+      <svg
+        aria-hidden="true"
+        style={{
+          position: "absolute",
+          inset: 0,
+          width: "100%",
+          height: "100%",
+          overflow: "visible",
+          pointerEvents: "none",
+          zIndex: 2,
+        }}
+      >
+        <g transform={view.raw}>
+          {vectors.map((force) => {
+            const isDraft = draft?.id === force.id;
+            const isSelected = !isDraft && selectedForceId === force.id;
+            const labelText = `${force.name} = ${formatNumber(force.magnitude)} N`;
+            const label = forceLabelPosition(force, view.scale, labelText);
+            const angleInfo = isSelected ? angleArc(force, view.scale) : null;
+            const referenceLength = ANGLE_REFERENCE_LENGTH_PX / view.scale;
+            const arrow = arrowGeometry(force.start, force.end, view.scale);
+            const editingName =
+              editor?.forceId === force.id && editor.field === "name";
+            const editingMagnitude =
+              editor?.forceId === force.id && editor.field === "magnitude";
 
-          return (
-            <g key={force.id} opacity={isDraft ? 0.68 : 1}>
-              {!isDraft && (
-                <line
-                  data-force-vector
-                  x1={force.start.x}
-                  y1={force.start.y}
-                  x2={force.end.x}
-                  y2={force.end.y}
-                  stroke="transparent"
-                  strokeWidth={18}
-                  strokeLinecap="round"
-                  vectorEffect="non-scaling-stroke"
-                  pointerEvents="stroke"
-                  style={{ cursor: moveRef.current?.id === force.id ? "grabbing" : "move" }}
-                  onPointerDown={(event) => beginMove(force, event)}
-                  onPointerMove={moveForce}
-                  onPointerUp={finishMove}
-                  onPointerCancel={finishMove}
-                />
-              )}
-
-              {isSelected && angleInfo && (
-                <g pointerEvents="none">
+            return (
+              <g key={force.id} opacity={isDraft ? 0.68 : 1}>
+                {!isDraft && (
                   <line
+                    data-force-vector
                     x1={force.start.x}
                     y1={force.start.y}
-                    x2={force.start.x + referenceLength}
-                    y2={force.start.y}
-                    stroke="#9aa1aa"
-                    strokeWidth={1}
-                    strokeDasharray="4 4"
+                    x2={force.end.x}
+                    y2={force.end.y}
+                    stroke="transparent"
+                    strokeWidth={18}
+                    strokeLinecap="round"
                     vectorEffect="non-scaling-stroke"
+                    pointerEvents="stroke"
+                    style={{ cursor: moveRef.current?.id === force.id ? "grabbing" : "move" }}
+                    onPointerDown={(event) => beginMove(force, event)}
+                    onPointerMove={moveForce}
+                    onPointerUp={finishMove}
+                    onPointerCancel={finishMove}
                   />
-                  {angleInfo.arcPath && (
-                    <path
-                      d={angleInfo.arcPath}
-                      fill="none"
-                      stroke="#7d858f"
-                      strokeWidth={1.2}
+                )}
+
+                {isSelected && angleInfo && (
+                  <g pointerEvents="none">
+                    <line
+                      x1={force.start.x}
+                      y1={force.start.y}
+                      x2={force.start.x + referenceLength}
+                      y2={force.start.y}
+                      stroke="#9aa1aa"
+                      strokeWidth={1}
+                      strokeDasharray="4 4"
                       vectorEffect="non-scaling-stroke"
                     />
-                  )}
+                    {angleInfo.arcPath && (
+                      <path
+                        d={angleInfo.arcPath}
+                        fill="none"
+                        stroke="#7d858f"
+                        strokeWidth={1.2}
+                        vectorEffect="non-scaling-stroke"
+                      />
+                    )}
+                    <text
+                      x={angleInfo.label.x}
+                      y={angleInfo.label.y}
+                      fill="#68717c"
+                      fontSize={11 / view.scale}
+                      fontWeight={600}
+                      textAnchor="middle"
+                      dominantBaseline="central"
+                    >
+                      {formatNumber(angleInfo.angle, 1)}°
+                    </text>
+                    <circle
+                      cx={force.start.x}
+                      cy={force.start.y}
+                      r={3.5 / view.scale}
+                      fill="#ffffff"
+                      stroke="#59636f"
+                      strokeWidth={1.3}
+                      vectorEffect="non-scaling-stroke"
+                    />
+                  </g>
+                )}
+
+                <line
+                  x1={force.start.x}
+                  y1={force.start.y}
+                  x2={arrow.shaftEnd.x}
+                  y2={arrow.shaftEnd.y}
+                  stroke={isSelected ? "#252c34" : "#3f4852"}
+                  strokeWidth={isSelected ? 2.4 : 2}
+                  strokeLinecap="round"
+                  vectorEffect="non-scaling-stroke"
+                />
+                <polygon
+                  points={arrow.headPoints}
+                  fill={isSelected ? "#252c34" : "#3f4852"}
+                />
+
+                {vectorLength(force) > 0 && (
                   <text
-                    x={angleInfo.label.x}
-                    y={angleInfo.label.y}
-                    fill="#68717c"
-                    fontSize={11 / view.scale}
+                    data-force-label
+                    x={label.x}
+                    y={label.y}
+                    fill="#3f4852"
+                    fontSize={FORCE_LABEL_FONT_SIZE_PX / view.scale}
                     fontWeight={600}
                     textAnchor="middle"
                     dominantBaseline="central"
                   >
-                    {formatNumber(angleInfo.angle, 1)}°
+                    <tspan
+                      data-force-label
+                      pointerEvents={isDraft ? "none" : "auto"}
+                      style={{ cursor: isDraft ? "default" : "text" }}
+                      visibility={editingName ? "hidden" : "visible"}
+                      onPointerDown={(event) => {
+                        if (!isDraft) beginInlineEdit(force, "name", event);
+                      }}
+                    >
+                      {force.name}
+                    </tspan>
+                    <tspan pointerEvents="none"> = </tspan>
+                    <tspan
+                      data-force-label
+                      pointerEvents={isDraft ? "none" : "auto"}
+                      style={{ cursor: isDraft ? "default" : "text" }}
+                      visibility={editingMagnitude ? "hidden" : "visible"}
+                      onPointerDown={(event) => {
+                        if (!isDraft) beginInlineEdit(force, "magnitude", event);
+                      }}
+                    >
+                      {formatNumber(force.magnitude)}
+                    </tspan>
+                    <tspan pointerEvents="none"> N</tspan>
                   </text>
-                  <circle
-                    cx={force.start.x}
-                    cy={force.start.y}
-                    r={3.5 / view.scale}
-                    fill="#ffffff"
-                    stroke="#59636f"
-                    strokeWidth={1.3}
-                    vectorEffect="non-scaling-stroke"
-                  />
-                </g>
-              )}
+                )}
+              </g>
+            );
+          })}
+        </g>
+      </svg>
 
-              <line
-                x1={force.start.x}
-                y1={force.start.y}
-                x2={arrow.shaftEnd.x}
-                y2={arrow.shaftEnd.y}
-                stroke={isSelected ? "#252c34" : "#3f4852"}
-                strokeWidth={isSelected ? 2.4 : 2}
-                strokeLinecap="round"
-                vectorEffect="non-scaling-stroke"
-              />
-              <polygon
-                points={arrow.headPoints}
-                fill={isSelected ? "#252c34" : "#3f4852"}
-              />
-
-              {vectorLength(force) > 0 && (
-                <text
-                  x={label.x}
-                  y={label.y}
-                  fill="#3f4852"
-                  fontSize={FORCE_LABEL_FONT_SIZE_PX / view.scale}
-                  fontWeight={600}
-                  textAnchor="middle"
-                  dominantBaseline="central"
-                  pointerEvents="none"
-                >
-                  {labelText}
-                </text>
-              )}
-            </g>
-          );
-        })}
-      </g>
-    </svg>,
+      {editor && (
+        <div
+          data-force-editor
+          style={{
+            position: "absolute",
+            zIndex: 3,
+            left: editor.left,
+            top: editor.top,
+            width: editor.width,
+            height: editor.height,
+            overflow: "visible",
+            pointerEvents: "auto",
+          }}
+          onPointerDown={(event) => event.stopPropagation()}
+        >
+          <input
+            ref={inputRef}
+            type={editor.field === "magnitude" ? "number" : "text"}
+            min={editor.field === "magnitude" ? "0" : undefined}
+            step={editor.field === "magnitude" ? "any" : undefined}
+            inputMode={editor.field === "magnitude" ? "decimal" : "text"}
+            aria-label={editor.field === "name" ? "Edit force name" : "Edit force magnitude"}
+            value={editor.value}
+            style={{
+              width: "100%",
+              height: "100%",
+              padding: 0,
+              border: 0,
+              outline: 0,
+              background: "transparent",
+              color: "#3f4852",
+              fontFamily: "Arial, Helvetica, sans-serif",
+              fontSize: FORCE_LABEL_FONT_SIZE_PX,
+              fontWeight: 600,
+              lineHeight: 1,
+              textAlign: "center",
+              boxShadow: "none",
+              appearance: "textfield",
+            }}
+            onChange={(event) =>
+              setEditor((current) =>
+                current ? { ...current, value: event.target.value } : current,
+              )
+            }
+            onBlur={commitEditor}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                event.currentTarget.blur();
+              } else if (event.key === "Escape") {
+                event.preventDefault();
+                cancelEditorRef.current = true;
+                setEditor(null);
+              }
+            }}
+          />
+        </div>
+      )}
+    </>,
     canvasRoot,
   );
 }
