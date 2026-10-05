@@ -15,12 +15,26 @@ type ForceCalculation = {
   fy: number;
 };
 
+type ReactionCalculation = {
+  id: string;
+  name: string;
+  fxCoefficient: number;
+  fyCoefficient: number;
+};
+
+type ReactionMomentCalculation = {
+  id: string;
+  name: string;
+};
+
 const UNIT_TO_NEWTONS: Record<string, number> = {
   N: 1,
   kN: 1000,
   MN: 1_000_000,
   mN: 0.001,
 };
+
+const REACTION_ZERO_TOLERANCE = 1e-6;
 
 function cleanNumber(value: number) {
   if (Math.abs(value) < 1e-9) return 0;
@@ -93,26 +107,92 @@ function readForces(canvas: HTMLElement): ForceCalculation[] {
   });
 }
 
-function componentEquation(forces: ForceCalculation[], axis: "x" | "y") {
-  if (forces.length === 0) return "0";
+function readReactionForces(canvas: HTMLElement): ReactionCalculation[] {
+  return Array.from(
+    canvas.querySelectorAll<SVGGElement>("[data-support-reaction-layer] [data-reaction-force]"),
+  ).flatMap((element, index) => {
+    const name = element.dataset.reactionName?.trim();
+    const fxCoefficient = Number(element.dataset.reactionFx);
+    const fyCoefficient = Number(element.dataset.reactionFy);
 
-  return forces
-    .map((force) => {
-      const trig = axis === "x" ? "cos" : "sin";
-      return `${force.name} ${trig}(${formatAngle(force.angle)}°)`;
-    })
-    .join(" + ");
+    if (
+      !name ||
+      !Number.isFinite(fxCoefficient) ||
+      !Number.isFinite(fyCoefficient)
+    ) {
+      return [];
+    }
+
+    return [
+      {
+        id: `reaction-${index}-${name}`,
+        name,
+        fxCoefficient,
+        fyCoefficient,
+      },
+    ];
+  });
 }
 
-function staticComponentEquation(forces: ForceCalculation[], axis: "x" | "y") {
-  if (forces.length === 0) return "0";
+function readReactionMoments(canvas: HTMLElement): ReactionMomentCalculation[] {
+  return Array.from(
+    canvas.querySelectorAll<SVGGElement>("[data-support-reaction-layer] [data-reaction-moment]"),
+  ).flatMap((element, index) => {
+    const name = element.dataset.reactionName?.trim();
+    return name ? [{ id: `reaction-moment-${index}-${name}`, name }] : [];
+  });
+}
 
-  return forces
-    .map((force) => {
-      const trig = axis === "x" ? "cos" : "sin";
-      return `${formatNumber(force.magnitude)} ${trig}(${formatAngle(force.angle)}°)`;
-    })
-    .join(" + ");
+function componentTerms(forces: ForceCalculation[], axis: "x" | "y") {
+  return forces.map((force) => {
+    const trig = axis === "x" ? "cos" : "sin";
+    return `${force.name} ${trig}(${formatAngle(force.angle)}°)`;
+  });
+}
+
+function staticComponentTerms(forces: ForceCalculation[], axis: "x" | "y") {
+  return forces.map((force) => {
+    const trig = axis === "x" ? "cos" : "sin";
+    return `${formatNumber(force.magnitude)} ${trig}(${formatAngle(force.angle)}°)`;
+  });
+}
+
+function reactionCoefficient(reaction: ReactionCalculation, axis: "x" | "y") {
+  return axis === "x" ? reaction.fxCoefficient : reaction.fyCoefficient;
+}
+
+function hasReactionOnAxis(reactions: ReactionCalculation[], axis: "x" | "y") {
+  return reactions.some(
+    (reaction) => Math.abs(reactionCoefficient(reaction, axis)) > REACTION_ZERO_TOLERANCE,
+  );
+}
+
+function equationWithReactions(
+  baseTerms: string[],
+  reactions: ReactionCalculation[],
+  axis: "x" | "y",
+) {
+  let expression = baseTerms.join(" + ");
+
+  for (const reaction of reactions) {
+    const coefficient = reactionCoefficient(reaction, axis);
+    if (Math.abs(coefficient) <= REACTION_ZERO_TOLERANCE) continue;
+
+    const magnitude = Math.abs(coefficient);
+    const coefficientText =
+      Math.abs(magnitude - 1) <= REACTION_ZERO_TOLERANCE
+        ? ""
+        : `${formatNumber(magnitude, 3)} `;
+    const term = `${coefficientText}${reaction.name}`;
+
+    if (!expression) {
+      expression = coefficient < 0 ? `−${term}` : term;
+    } else {
+      expression += coefficient < 0 ? ` − ${term}` : ` + ${term}`;
+    }
+  }
+
+  return expression || "0";
 }
 
 export default function CalculationsPanel() {
@@ -121,6 +201,8 @@ export default function CalculationsPanel() {
   const [mode, setMode] = useState<AnalysisMode>("static");
   const [mass, setMass] = useState("1");
   const [forces, setForces] = useState<ForceCalculation[]>([]);
+  const [reactions, setReactions] = useState<ReactionCalculation[]>([]);
+  const [reactionMoments, setReactionMoments] = useState<ReactionMomentCalculation[]>([]);
 
   useEffect(() => {
     const sidebar = document.querySelector<HTMLElement>(".sidebar");
@@ -132,7 +214,11 @@ export default function CalculationsPanel() {
     if (!canvas) return;
 
     let frame: number | null = null;
-    const update = () => setForces(readForces(canvas));
+    const update = () => {
+      setForces(readForces(canvas));
+      setReactions(readReactionForces(canvas));
+      setReactionMoments(readReactionMoments(canvas));
+    };
     const scheduleUpdate = () => {
       if (frame !== null) return;
       frame = window.requestAnimationFrame(() => {
@@ -147,7 +233,15 @@ export default function CalculationsPanel() {
       childList: true,
       characterData: true,
       attributes: true,
-      attributeFilter: ["x1", "y1", "x2", "y2"],
+      attributeFilter: [
+        "x1",
+        "y1",
+        "x2",
+        "y2",
+        "data-reaction-name",
+        "data-reaction-fx",
+        "data-reaction-fy",
+      ],
     });
 
     update();
@@ -172,10 +266,21 @@ export default function CalculationsPanel() {
 
   const massValue = Number(mass);
   const validMass = Number.isFinite(massValue) && massValue > 0;
-  const xEquation = componentEquation(forces, "x");
-  const yEquation = componentEquation(forces, "y");
-  const staticXEquation = staticComponentEquation(forces, "x");
-  const staticYEquation = staticComponentEquation(forces, "y");
+  const hasXReaction = hasReactionOnAxis(reactions, "x");
+  const hasYReaction = hasReactionOnAxis(reactions, "y");
+  const xEquation = equationWithReactions(componentTerms(forces, "x"), reactions, "x");
+  const yEquation = equationWithReactions(componentTerms(forces, "y"), reactions, "y");
+  const staticXEquation = equationWithReactions(
+    staticComponentTerms(forces, "x"),
+    reactions,
+    "x",
+  );
+  const staticYEquation = equationWithReactions(
+    staticComponentTerms(forces, "y"),
+    reactions,
+    "y",
+  );
+  const hasAnyLoads = forces.length > 0 || reactions.length > 0;
 
   if (!sidebarRoot) return null;
 
@@ -225,11 +330,29 @@ export default function CalculationsPanel() {
           {mode === "static" ? (
             <div className={styles.staticEquations}>
               <div className={styles.staticEquation}>
-                ΣFₓ = {forces.length > 0 ? `${staticXEquation} = ${formatNumber(totals.x)} N` : "0"}
+                ΣFₓ = {hasXReaction
+                  ? `${staticXEquation} = 0`
+                  : forces.length > 0
+                    ? `${staticXEquation} = ${formatNumber(totals.x)} N`
+                    : "0"}
               </div>
               <div className={styles.staticEquation}>
-                ΣFᵧ = {forces.length > 0 ? `${staticYEquation} = ${formatNumber(totals.y)} N` : "0"}
+                ΣFᵧ = {hasYReaction
+                  ? `${staticYEquation} = 0`
+                  : forces.length > 0
+                    ? `${staticYEquation} = ${formatNumber(totals.y)} N`
+                    : "0"}
               </div>
+              {reactionMoments.length > 0 && (
+                <div className={styles.staticEquation}>
+                  ΣM = {reactionMoments.map((moment) => moment.name).join(" + ")} + Σ(r × F) = 0
+                </div>
+              )}
+              {reactions.length > 0 && (
+                <p className={styles.signConvention}>
+                  Support reactions are treated as unknowns · +x right · +y up
+                </p>
+              )}
             </div>
           ) : (
             <>
@@ -248,18 +371,24 @@ export default function CalculationsPanel() {
                 </span>
               </label>
 
-              {forces.length === 0 ? (
-                <p className={styles.empty}>Add applied force vectors to the canvas to calculate their components.</p>
+              {!hasAnyLoads ? (
+                <p className={styles.empty}>Add applied force vectors or attach supports to the body to calculate their components.</p>
               ) : (
                 <>
                   <div className={styles.axisCard}>
                     <div className={styles.axisHeader}>
                       <span>X direction</span>
-                      <strong>ΣFₓ = {formatNumber(totals.x)} N</strong>
+                      <strong>
+                        {hasXReaction ? "ΣFₓ = maₓ" : `ΣFₓ = ${formatNumber(totals.x)} N`}
+                      </strong>
                     </div>
                     <div className={styles.expression}>{xEquation}</div>
                     <div className={styles.governing}>ΣFₓ = maₓ</div>
-                    {validMass ? (
+                    {hasXReaction ? (
+                      <div className={styles.resultNote}>
+                        Contains unknown support reactions; solve them before evaluating aₓ numerically.
+                      </div>
+                    ) : validMass ? (
                       <div className={styles.resultNote}>
                         aₓ = {formatNumber(totals.x / massValue)} m/s²
                       </div>
@@ -271,11 +400,17 @@ export default function CalculationsPanel() {
                   <div className={styles.axisCard}>
                     <div className={styles.axisHeader}>
                       <span>Y direction</span>
-                      <strong>ΣFᵧ = {formatNumber(totals.y)} N</strong>
+                      <strong>
+                        {hasYReaction ? "ΣFᵧ = maᵧ" : `ΣFᵧ = ${formatNumber(totals.y)} N`}
+                      </strong>
                     </div>
                     <div className={styles.expression}>{yEquation}</div>
                     <div className={styles.governing}>ΣFᵧ = maᵧ</div>
-                    {validMass ? (
+                    {hasYReaction ? (
+                      <div className={styles.resultNote}>
+                        Contains unknown support reactions; solve them before evaluating aᵧ numerically.
+                      </div>
+                    ) : validMass ? (
                       <div className={styles.resultNote}>
                         aᵧ = {formatNumber(totals.y / massValue)} m/s²
                       </div>
