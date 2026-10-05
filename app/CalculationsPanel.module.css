@@ -1,0 +1,154 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: calc(100vh - 270px);
+  padding-top: 2px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.modeToggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.modeButton {
+  min-width: 0;
+  padding: 8px 6px;
+  border: 1px solid #e2e5e9;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #737a84;
+  cursor: pointer;
+  font-size: 10px;
+  line-height: 1.25;
+}
+
+.modeButton:hover {
+  border-color: #c8cdd4;
+  background: #f8f9fa;
+  color: #343941;
+}
+
+.modeButton:focus-visible {
+  outline: 2px solid #aeb4bd;
+  outline-offset: 2px;
+}
+
+.selected {
+  border-color: #9ca3ad;
+  background: #f1f3f5;
+  color: #20242a;
+  font-weight: 700;
+}
+
+.massField {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: #666e78;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.massInputWrap {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: #858c95;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.massInputWrap input {
+  width: 68px;
+  height: 28px;
+  padding: 4px 7px;
+  border: 1px solid #dfe3e8;
+  border-radius: 5px;
+  outline: none;
+  background: #ffffff;
+  color: #2f353d;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.massInputWrap input:focus {
+  border-color: #aeb4bd;
+}
+
+.axisCard {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 10px;
+  border: 1px solid #e4e7eb;
+  border-radius: 7px;
+  background: #fafbfc;
+}
+
+.axisHeader {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  color: #747b85;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.axisHeader strong {
+  color: #2f353d;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+  white-space: nowrap;
+}
+
+.expression {
+  overflow-wrap: anywhere;
+  color: #515963;
+  font-family: "Times New Roman", Times, serif;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.governing {
+  padding-top: 5px;
+  border-top: 1px solid #e6e9ed;
+  color: #252b32;
+  font-family: "Times New Roman", Times, serif;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.resultNote {
+  color: #747b85;
+  font-size: 10px;
+  line-height: 1.35;
+  font-variant-numeric: tabular-nums;
+}
+
+.empty {
+  margin: 0;
+  padding: 10px;
+  border: 1px solid #e5e8ec;
+  border-radius: 7px;
+  background: #fafbfc;
+  color: #9399a2;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.signConvention {
+  margin: 0;
+  color: #9a9fa8;
+  font-size: 10px;
+  text-align: center;
+}
