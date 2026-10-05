@@ -62,3 +62,19 @@
 .switch.enabled .knob {
   transform: translateX(13px);
 }
+
+:global(html[data-display-grid="off"] .canvas::before) {
+  display: none;
+}
+
+:global(html[data-display-dimensions="off"] .dimensionAnnotation) {
+  display: none;
+}
+
+:global(html[data-display-force-labels="off"] text[data-force-label]) {
+  display: none;
+}
+
+:global(html[data-display-force-angles="off"] g:has(> text[data-force-angle])) {
+  display: none;
+}
