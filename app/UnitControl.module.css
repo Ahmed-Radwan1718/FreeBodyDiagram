@@ -1,67 +1,63 @@
-.unitSection {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.heading {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 2px;
-}
-
-.icon {
-  width: 18px;
-  height: 18px;
-  flex: 0 0 18px;
-  fill: none;
-  stroke: #7a818c;
-  stroke-width: 1.6;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-.label {
-  margin: 0;
-  color: #7a818c;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
-.fieldLabel {
-  margin-top: 2px;
-  color: #5f6670;
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.select {
-  width: 100%;
-  height: 36px;
-  padding: 0 34px 0 10px;
+.unitMenu {
+  position: fixed;
+  z-index: 20;
+  width: 160px;
+  padding: 4px;
   border: 1px solid #d8dce2;
-  border-radius: 7px;
+  border-radius: 8px;
   background: #ffffff;
-  color: #2d3239;
-  font-size: 12px;
+  box-shadow: 0 8px 24px rgba(18, 24, 40, 0.14);
+}
+
+.unitOption {
+  width: 100%;
+  min-height: 34px;
+  display: grid;
+  grid-template-columns: 34px 1fr 18px;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #343941;
   cursor: pointer;
+  text-align: left;
 }
 
-.select:hover {
-  border-color: #bcc2ca;
+.unitOption:hover,
+.unitOption:focus-visible {
+  background: #f3f5f7;
 }
 
-.select:focus-visible {
+.unitOption:focus-visible {
   outline: 2px solid #aeb4bd;
-  outline-offset: 2px;
+  outline-offset: -2px;
 }
 
-.hint {
-  margin: 0;
-  color: #9a9fa8;
+.unitOption.isSelected {
+  background: #eef1f4;
+  color: #20242a;
+}
+
+.symbol {
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.name {
+  color: #6d737d;
   font-size: 11px;
-  line-height: 1.45;
+}
+
+.isSelected .name {
+  color: #4f5660;
+}
+
+.check {
+  color: #4f5660;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: right;
 }

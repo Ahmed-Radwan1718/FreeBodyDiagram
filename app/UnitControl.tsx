@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ChangeEvent } from "react";
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import styles from "./UnitControl.module.css";
 
@@ -12,6 +12,11 @@ type UnitOption = {
   symbol: string;
   fromCentimeters: number;
   decimals: number;
+};
+
+type MenuPosition = {
+  left: number;
+  top: number;
 };
 
 const UNIT_OPTIONS: UnitOption[] = [
@@ -52,6 +57,9 @@ const UNIT_OPTIONS: UnitOption[] = [
   },
 ];
 
+const MENU_WIDTH = 160;
+const MENU_HEIGHT = 188;
+
 function getUnitOption(unit: LengthUnit) {
   return UNIT_OPTIONS.find((option) => option.value === unit) ?? UNIT_OPTIONS[0];
 }
@@ -61,6 +69,12 @@ function formatConvertedDimension(valueInCentimeters: number, option: UnitOption
   return Number(converted.toFixed(option.decimals)).toString();
 }
 
+function getDimensionLabel(target: EventTarget | null) {
+  if (!(target instanceof Element)) return null;
+  const label = target.closest(".dimensionLabel");
+  return label instanceof SVGTextElement ? label : null;
+}
+
 function updateDimensionLabels(unit: LengthUnit) {
   const drawingLayer = document.querySelector<SVGSVGElement>(".drawingLayer");
   if (!drawingLayer) return;
@@ -68,6 +82,9 @@ function updateDimensionLabels(unit: LengthUnit) {
   const option = getUnitOption(unit);
 
   drawingLayer.querySelectorAll<SVGTextElement>(".dimensionLabel").forEach((label) => {
+    label.style.pointerEvents = "auto";
+    label.style.cursor = "pointer";
+
     const currentText = label.textContent?.trim() ?? "";
     const numericCurrentValue = Number(currentText);
 
@@ -112,11 +129,7 @@ function updateDimensionLabels(unit: LengthUnit) {
 
 export default function UnitControl() {
   const [unit, setUnit] = useState<LengthUnit>("cm");
-  const [sidebar, setSidebar] = useState<HTMLElement | null>(null);
-
-  useEffect(() => {
-    setSidebar(document.querySelector<HTMLElement>(".sidebar"));
-  }, []);
+  const [menuPosition, setMenuPosition] = useState<MenuPosition | null>(null);
 
   useEffect(() => {
     const drawingLayer = document.querySelector<SVGSVGElement>(".drawingLayer");
@@ -139,54 +152,116 @@ export default function UnitControl() {
       childList: true,
       characterData: true,
       attributes: true,
-      attributeFilter: ["x"],
+      attributeFilter: ["x", "y"],
     });
+
+    function openMenu(label: SVGTextElement) {
+      const rect = label.getBoundingClientRect();
+      const left = Math.max(
+        8,
+        Math.min(rect.right - 28, window.innerWidth - MENU_WIDTH - 8),
+      );
+      const preferredTop = rect.bottom + 6;
+      const top =
+        preferredTop + MENU_HEIGHT <= window.innerHeight
+          ? preferredTop
+          : Math.max(8, rect.top - MENU_HEIGHT - 6);
+
+      setMenuPosition({ left, top });
+    }
+
+    function handleDimensionPointerDown(event: PointerEvent) {
+      if (!getDimensionLabel(event.target)) return;
+      event.stopPropagation();
+    }
+
+    function handleDimensionClick(event: MouseEvent) {
+      const label = getDimensionLabel(event.target);
+      if (!label) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+      openMenu(label);
+    }
+
+    function handleDocumentPointerDown(event: PointerEvent) {
+      if (!(event.target instanceof Element)) {
+        setMenuPosition(null);
+        return;
+      }
+
+      if (
+        event.target.closest("[data-unit-menu]") ||
+        event.target.closest(".dimensionLabel")
+      ) {
+        return;
+      }
+
+      setMenuPosition(null);
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setMenuPosition(null);
+      }
+    }
+
+    function closeMenu() {
+      setMenuPosition(null);
+    }
+
+    drawingLayer.addEventListener("pointerdown", handleDimensionPointerDown);
+    drawingLayer.addEventListener("click", handleDimensionClick);
+    drawingLayer.addEventListener("wheel", closeMenu, { passive: true });
+    document.addEventListener("pointerdown", handleDocumentPointerDown);
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("resize", closeMenu);
 
     scheduleUpdate();
 
     return () => {
       observer.disconnect();
+      drawingLayer.removeEventListener("pointerdown", handleDimensionPointerDown);
+      drawingLayer.removeEventListener("click", handleDimensionClick);
+      drawingLayer.removeEventListener("wheel", closeMenu);
+      document.removeEventListener("pointerdown", handleDocumentPointerDown);
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("resize", closeMenu);
       if (animationFrame !== null) {
         window.cancelAnimationFrame(animationFrame);
       }
     };
   }, [unit]);
 
-  if (!sidebar) return null;
-
-  function handleUnitChange(event: ChangeEvent<HTMLSelectElement>) {
-    setUnit(event.target.value as LengthUnit);
-  }
+  if (!menuPosition) return null;
 
   return createPortal(
-    <div className={styles.unitSection}>
-      <div className={styles.heading}>
-        <svg className={styles.icon} viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M4 18 18 4l2 2L6 20 4 18Z" />
-          <path d="m9 13 2 2" />
-          <path d="m12 10 2 2" />
-          <path d="m15 7 2 2" />
-        </svg>
-        <p className={styles.label}>Units</p>
-      </div>
-
-      <label className={styles.fieldLabel} htmlFor="dimension-unit">
-        Dimension unit
-      </label>
-      <select
-        id="dimension-unit"
-        className={styles.select}
-        value={unit}
-        onChange={handleUnitChange}
-      >
-        {UNIT_OPTIONS.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label} ({option.symbol})
-          </option>
-        ))}
-      </select>
-      <p className={styles.hint}>1 grid unit is treated as 1 cm.</p>
+    <div
+      className={styles.unitMenu}
+      data-unit-menu
+      role="menu"
+      aria-label="Choose dimension unit"
+      style={{ left: menuPosition.left, top: menuPosition.top }}
+      onPointerDown={(event) => event.stopPropagation()}
+    >
+      {UNIT_OPTIONS.map((option) => (
+        <button
+          key={option.value}
+          type="button"
+          role="menuitemradio"
+          aria-checked={unit === option.value}
+          className={`${styles.unitOption}${unit === option.value ? ` ${styles.isSelected}` : ""}`}
+          onClick={() => {
+            setUnit(option.value);
+            setMenuPosition(null);
+          }}
+        >
+          <span className={styles.symbol}>{option.symbol}</span>
+          <span className={styles.name}>{option.label}</span>
+          {unit === option.value && <span className={styles.check}>✓</span>}
+        </button>
+      ))}
     </div>,
-    sidebar,
+    document.body,
   );
 }
