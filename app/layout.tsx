@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import CanvasModeToggle from "./CanvasModeToggle";
+import ForcesPanel from "./ForcesPanel";
 import UnitControl from "./UnitControl";
 
 export const metadata: Metadata = {
@@ -18,6 +19,7 @@ export default function RootLayout({
       <body>
         {children}
         <CanvasModeToggle />
+        <ForcesPanel />
         <UnitControl />
       </body>
     </html>
