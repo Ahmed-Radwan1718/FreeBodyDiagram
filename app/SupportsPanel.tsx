@@ -259,7 +259,7 @@ function SupportGlyph({
 }) {
   const unit = 1 / Math.max(scale, 0.001);
   const stroke = selected ? SUPPORT_SELECTED_STROKE : SUPPORT_STROKE;
-  const strokeWidth = selected ? 2 : 1.7;
+  const strokeWidth = (selected ? 2 : 1.7) * unit;
   const hatchXs = [-12, -6, 0, 6, 12];
 
   return (
@@ -271,13 +271,13 @@ function SupportGlyph({
           r={20 * unit}
           fill="none"
           stroke="#9ca3ad"
-          strokeWidth={1}
+          strokeWidth={1 * unit}
           strokeDasharray={`${4 * unit} ${4 * unit}`}
         />
       )}
 
       {support.type === "pin" && (
-        <g fill="none" stroke={stroke} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke">
+        <g fill="none" stroke={stroke} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
           <circle cx={0} cy={0} r={2.8 * unit} fill="#ffffff" />
           <path d={`M 0 ${3 * unit} L ${-11 * unit} ${18 * unit} L ${11 * unit} ${18 * unit} Z`} fill="#ffffff" />
           <line x1={-14 * unit} y1={18 * unit} x2={14 * unit} y2={18 * unit} />
@@ -288,7 +288,7 @@ function SupportGlyph({
       )}
 
       {support.type === "roller" && (
-        <g fill="none" stroke={stroke} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke">
+        <g fill="none" stroke={stroke} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
           <circle cx={0} cy={0} r={2.6 * unit} fill="#ffffff" />
           <path d={`M 0 ${3 * unit} L ${-11 * unit} ${15 * unit} L ${11 * unit} ${15 * unit} Z`} fill="#ffffff" />
           <circle cx={-6 * unit} cy={19 * unit} r={3 * unit} fill="#ffffff" />
@@ -301,9 +301,9 @@ function SupportGlyph({
       )}
 
       {support.type === "fixed" && (
-        <g fill="none" stroke={stroke} strokeWidth={strokeWidth} strokeLinecap="round" vectorEffect="non-scaling-stroke">
+        <g fill="none" stroke={stroke} strokeWidth={strokeWidth} strokeLinecap="round">
           <line x1={0} y1={0} x2={0} y2={5 * unit} />
-          <line x1={-14 * unit} y1={5 * unit} x2={14 * unit} y2={5 * unit} strokeWidth={selected ? 2.8 : 2.4} />
+          <line x1={-14 * unit} y1={5 * unit} x2={14 * unit} y2={5 * unit} strokeWidth={(selected ? 2.8 : 2.4) * unit} />
           {hatchXs.map((x) => (
             <line key={x} x1={x * unit} y1={6 * unit} x2={(x - 5) * unit} y2={13 * unit} />
           ))}
@@ -612,7 +612,7 @@ export default function SupportsPanel() {
               scale={view.scale}
               selected={selectedSupportId === support.id}
             />
-            <g transform={`translate(${support.point.x} ${support.point.y})`}>
+            <g transform={`translate(${support.point.x} ${support.point.y}) rotate(${support.rotation})`}>
               <circle
                 data-support-hit
                 cx={0}
