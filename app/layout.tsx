@@ -5,6 +5,7 @@ import AppliedForceLayer from "./AppliedForceLayer";
 import CalculationsPanel from "./CalculationsPanel";
 import CanvasModeToggle from "./CanvasModeToggle";
 import DimensionPositioning from "./DimensionPositioning";
+import DisplayPanel from "./DisplayPanel";
 import ForceCentroidGuides from "./ForceCentroidGuides";
 import ForcesPanel from "./ForcesPanel";
 import ShapeLabelOverride from "./ShapeLabelOverride";
@@ -31,6 +32,7 @@ export default function RootLayout({
         <DimensionPositioning />
         <ForcesPanel />
         <CalculationsPanel />
+        <DisplayPanel />
         <ShapeLabelOverride />
         <UnitControl />
       </body>
