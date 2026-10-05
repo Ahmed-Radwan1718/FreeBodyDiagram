@@ -19,7 +19,24 @@ type ForceVector = {
 };
 type ForceTool = "applied" | "distributed" | null;
 type ViewTransform = { x: number; y: number; scale: number; raw: string };
-type ForceMove = { id: string; pointerId: number; previousPoint: Point };
+type ForceEndpoint = "start" | "end";
+type ForceSnapLock = {
+  endpoint: ForceEndpoint;
+  shape: SVGGraphicsElement;
+};
+type ForceMove = {
+  id: string;
+  pointerId: number;
+  previousPoint: Point;
+  freeStart: Point;
+  freeEnd: Point;
+  snap: ForceSnapLock | null;
+};
+type ShapeSnap = {
+  point: Point;
+  shape: SVGGraphicsElement;
+  distancePx: number;
+};
 type ForceLabelField = "name" | "magnitude";
 type InlineEditor = {
   forceId: string;
@@ -41,6 +58,8 @@ const ANGLE_RADIUS_PX = 28;
 const ANGLE_REFERENCE_LENGTH_PX = 42;
 const ANGLE_LABEL_RADIAL_CLEARANCE_PX = 18;
 const ANGLE_LABEL_RIGHT_OFFSET_PX = 8;
+const FORCE_SNAP_DISTANCE_PX = 12;
+const FORCE_SNAP_RELEASE_DISTANCE_PX = 24;
 
 function parseTransform(value: string | null): ViewTransform {
   const raw = value ?? "";
@@ -73,6 +92,144 @@ function forceAngle(force: ForceVector) {
 
 function formatNumber(value: number, decimals = 2) {
   return Number(value.toFixed(decimals)).toString();
+}
+
+function closestPointOnSegment(point: Point, start: Point, end: Point): Point {
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  const lengthSquared = dx * dx + dy * dy;
+
+  if (lengthSquared === 0) return start;
+
+  const t = Math.max(
+    0,
+    Math.min(1, ((point.x - start.x) * dx + (point.y - start.y) * dy) / lengthSquared),
+  );
+
+  return {
+    x: start.x + dx * t,
+    y: start.y + dy * t,
+  };
+}
+
+function closestPointOnSegments(point: Point, vertices: Point[]): Point | null {
+  if (vertices.length < 2) return null;
+
+  let closest: Point | null = null;
+  let closestDistance = Number.POSITIVE_INFINITY;
+
+  for (let index = 0; index < vertices.length; index += 1) {
+    const start = vertices[index];
+    const end = vertices[(index + 1) % vertices.length];
+    const candidate = closestPointOnSegment(point, start, end);
+    const distance = Math.hypot(candidate.x - point.x, candidate.y - point.y);
+
+    if (distance < closestDistance) {
+      closest = candidate;
+      closestDistance = distance;
+    }
+  }
+
+  return closest;
+}
+
+function closestPointOnShape(shape: SVGGraphicsElement, point: Point): Point | null {
+  const tagName = shape.tagName.toLowerCase();
+
+  if (tagName === "rect") {
+    const x = Number(shape.getAttribute("x"));
+    const y = Number(shape.getAttribute("y"));
+    const width = Number(shape.getAttribute("width"));
+    const height = Number(shape.getAttribute("height"));
+
+    if (![x, y, width, height].every(Number.isFinite)) return null;
+
+    return closestPointOnSegments(point, [
+      { x, y },
+      { x: x + width, y },
+      { x: x + width, y: y + height },
+      { x, y: y + height },
+    ]);
+  }
+
+  if (tagName === "ellipse") {
+    const cx = Number(shape.getAttribute("cx"));
+    const cy = Number(shape.getAttribute("cy"));
+    const rx = Number(shape.getAttribute("rx"));
+    const ry = Number(shape.getAttribute("ry"));
+
+    if (![cx, cy, rx, ry].every(Number.isFinite) || rx <= 0 || ry <= 0) return null;
+
+    const dx = point.x - cx;
+    const dy = point.y - cy;
+    if (dx === 0 && dy === 0) return { x: cx + rx, y: cy };
+
+    const radialScale = 1 / Math.sqrt((dx * dx) / (rx * rx) + (dy * dy) / (ry * ry));
+    return {
+      x: cx + dx * radialScale,
+      y: cy + dy * radialScale,
+    };
+  }
+
+  if (tagName === "polygon") {
+    const polygon = shape as SVGPolygonElement;
+    const vertices: Point[] = [];
+
+    for (let index = 0; index < polygon.points.numberOfItems; index += 1) {
+      const vertex = polygon.points.getItem(index);
+      vertices.push({ x: vertex.x, y: vertex.y });
+    }
+
+    return closestPointOnSegments(point, vertices);
+  }
+
+  return null;
+}
+
+function closestShapeSnap(
+  point: Point,
+  scale: number,
+  lockedShape?: SVGGraphicsElement,
+): ShapeSnap | null {
+  const shapes = lockedShape
+    ? lockedShape.isConnected
+      ? [lockedShape]
+      : []
+    : Array.from(
+        document.querySelectorAll<SVGGraphicsElement>(
+          ".drawingLayer .drawnShape:not(.isDraft)",
+        ),
+      );
+
+  let closest: ShapeSnap | null = null;
+
+  for (const shape of shapes) {
+    const edgePoint = closestPointOnShape(shape, point);
+    if (!edgePoint) continue;
+
+    const distancePx = Math.hypot(edgePoint.x - point.x, edgePoint.y - point.y) * scale;
+    if (!closest || distancePx < closest.distancePx) {
+      closest = { point: edgePoint, shape, distancePx };
+    }
+  }
+
+  return closest;
+}
+
+function translatedToSnap(
+  start: Point,
+  end: Point,
+  endpoint: ForceEndpoint,
+  snapPoint: Point,
+) {
+  const source = endpoint === "start" ? start : end;
+  const dx = snapPoint.x - source.x;
+  const dy = snapPoint.y - source.y;
+
+  return {
+    start: { x: start.x + dx, y: start.y + dy },
+    end: { x: end.x + dx, y: end.y + dy },
+  };
 }
 
 function arrowGeometry(start: Point, end: Point, scale: number) {
@@ -386,6 +543,9 @@ export default function AppliedForceLayer() {
       id: force.id,
       pointerId: event.pointerId,
       previousPoint: point,
+      freeStart: { ...force.start },
+      freeEnd: { ...force.end },
+      snap: null,
     };
     event.currentTarget.setPointerCapture(event.pointerId);
   }
@@ -402,14 +562,88 @@ export default function AppliedForceLayer() {
     const dx = point.x - moving.previousPoint.x;
     const dy = point.y - moving.previousPoint.y;
     moving.previousPoint = point;
+    moving.freeStart = {
+      x: moving.freeStart.x + dx,
+      y: moving.freeStart.y + dy,
+    };
+    moving.freeEnd = {
+      x: moving.freeEnd.x + dx,
+      y: moving.freeEnd.y + dy,
+    };
+
+    let nextStart = moving.freeStart;
+    let nextEnd = moving.freeEnd;
+
+    if (moving.snap) {
+      const freeEndpoint =
+        moving.snap.endpoint === "start" ? moving.freeStart : moving.freeEnd;
+      const lockedCandidate = closestShapeSnap(
+        freeEndpoint,
+        view.scale,
+        moving.snap.shape,
+      );
+
+      if (
+        lockedCandidate &&
+        lockedCandidate.distancePx <= FORCE_SNAP_RELEASE_DISTANCE_PX
+      ) {
+        const translated = translatedToSnap(
+          moving.freeStart,
+          moving.freeEnd,
+          moving.snap.endpoint,
+          lockedCandidate.point,
+        );
+        nextStart = translated.start;
+        nextEnd = translated.end;
+      } else {
+        moving.snap = null;
+      }
+    } else {
+      const startCandidate = closestShapeSnap(moving.freeStart, view.scale);
+      const endCandidate = closestShapeSnap(moving.freeEnd, view.scale);
+      const startIsNear =
+        startCandidate && startCandidate.distancePx <= FORCE_SNAP_DISTANCE_PX;
+      const endIsNear = endCandidate && endCandidate.distancePx <= FORCE_SNAP_DISTANCE_PX;
+
+      let endpoint: ForceEndpoint | null = null;
+      let candidate: ShapeSnap | null = null;
+
+      if (startIsNear && endIsNear) {
+        if (startCandidate!.distancePx <= endCandidate!.distancePx) {
+          endpoint = "start";
+          candidate = startCandidate;
+        } else {
+          endpoint = "end";
+          candidate = endCandidate;
+        }
+      } else if (startIsNear) {
+        endpoint = "start";
+        candidate = startCandidate;
+      } else if (endIsNear) {
+        endpoint = "end";
+        candidate = endCandidate;
+      }
+
+      if (endpoint && candidate) {
+        moving.snap = { endpoint, shape: candidate.shape };
+        const translated = translatedToSnap(
+          moving.freeStart,
+          moving.freeEnd,
+          endpoint,
+          candidate.point,
+        );
+        nextStart = translated.start;
+        nextEnd = translated.end;
+      }
+    }
 
     setForces((current) =>
       current.map((force) =>
         force.id === moving.id
           ? {
               ...force,
-              start: { x: force.start.x + dx, y: force.start.y + dy },
-              end: { x: force.end.x + dx, y: force.end.y + dy },
+              start: nextStart,
+              end: nextEnd,
             }
           : force,
       ),
