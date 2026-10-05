@@ -91,7 +91,13 @@ export default function SidebarDropdownMotion() {
           .then(() => {
             if (sectionAnimations.get(section) !== sectionAnimation) return;
             sectionAnimations.delete(section);
+
+            // Let the section return to its natural auto height after the motion
+            // finishes. A finished Web Animation with fill:"both" keeps its
+            // animated height active until it is cancelled, which otherwise
+            // leaves the panel stuck at a stale measured height.
             clearSectionStyles(section);
+            sectionAnimation.cancel();
           });
 
         contentAnimation.finished
@@ -177,7 +183,13 @@ export default function SidebarDropdownMotion() {
           button.click();
 
           requestAnimationFrame(() => {
-            if (section.isConnected) clearSectionStyles(section);
+            if (!section.isConnected) return;
+
+            // React has now removed the dropdown content. Remove the animation
+            // effect as well so its filled end height cannot affect the next
+            // time this section opens.
+            sectionAnimation.cancel();
+            clearSectionStyles(section);
           });
         });
     }
