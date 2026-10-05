@@ -53,13 +53,38 @@ export default function ForcesPanel() {
     if (existingForcesSection) existingForcesSection.style.display = "none";
     setSidebarRoot(sidebar);
 
+    function handleSidebarClick(event: MouseEvent) {
+      if (!(event.target instanceof Element)) return;
+      const option = event.target.closest<HTMLButtonElement>(".shapeOption");
+      if (!option || option.hasAttribute("data-force-tool")) return;
+
+      setSelectedTool(null);
+      delete document.documentElement.dataset.forceTool;
+      window.dispatchEvent(
+        new CustomEvent("forcetoolchange", {
+          detail: { tool: null },
+        }),
+      );
+    }
+
+    sidebar.addEventListener("click", handleSidebarClick, true);
+
     return () => {
+      sidebar.removeEventListener("click", handleSidebarClick, true);
       if (existingForcesSection) existingForcesSection.style.display = previousDisplay;
     };
   }, []);
 
   function toggleTool(tool: ForceTool) {
     const nextTool = selectedTool === tool ? null : tool;
+
+    if (nextTool) {
+      const selectedShapeButton = sidebarRoot?.querySelector<HTMLButtonElement>(
+        ".shapeOption.isSelected:not([data-force-tool])",
+      );
+      selectedShapeButton?.click();
+    }
+
     setSelectedTool(nextTool);
 
     if (nextTool) document.documentElement.dataset.forceTool = nextTool;
@@ -102,6 +127,7 @@ export default function ForcesPanel() {
           {FORCE_OPTIONS.map((option) => (
             <button
               key={option.type}
+              data-force-tool={option.type}
               className={`shapeOption${selectedTool === option.type ? " isSelected" : ""}`}
               type="button"
               aria-pressed={selectedTool === option.type}
