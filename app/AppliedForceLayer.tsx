@@ -37,7 +37,7 @@ type ShapeSnap = {
   shape: SVGGraphicsElement;
   distancePx: number;
 };
-type ForceLabelField = "name" | "magnitude";
+type ForceLabelField = "name" | "magnitude" | "angle";
 type InlineEditor = {
   forceId: string;
   field: ForceLabelField;
@@ -367,6 +367,7 @@ export default function AppliedForceLayer() {
       if (
         event.target.closest("[data-force-vector]") ||
         event.target.closest("[data-force-label]") ||
+        event.target.closest("[data-force-angle]") ||
         event.target.closest("[data-force-editor]")
       ) {
         return;
@@ -408,6 +409,7 @@ export default function AppliedForceLayer() {
         (event.target.closest(".dimensionLabel") ||
           event.target.closest("[data-force-vector]") ||
           event.target.closest("[data-force-label]") ||
+          event.target.closest("[data-force-angle]") ||
           event.target.closest("[data-force-editor]"))
       ) {
         return;
@@ -666,7 +668,7 @@ export default function AppliedForceLayer() {
   function beginInlineEdit(
     force: ForceVector,
     field: ForceLabelField,
-    event: ReactPointerEvent<SVGTSpanElement>,
+    event: ReactPointerEvent<SVGTextElement | SVGTSpanElement>,
   ) {
     if (!canvasRoot || event.button !== 0) return;
 
@@ -677,7 +679,12 @@ export default function AppliedForceLayer() {
 
     const rect = event.currentTarget.getBoundingClientRect();
     const canvasRect = canvasRoot.getBoundingClientRect();
-    const value = field === "name" ? force.name : formatNumber(force.magnitude);
+    const value =
+      field === "name"
+        ? force.name
+        : field === "angle"
+          ? formatNumber(forceAngle(force), 1)
+          : formatNumber(force.magnitude);
 
     setEditor({
       forceId: force.id,
@@ -712,6 +719,34 @@ export default function AppliedForceLayer() {
           ),
         );
       }
+      setEditor(null);
+      return;
+    }
+
+    if (editor.field === "angle") {
+      const enteredAngle = Number(editor.value);
+      const length = vectorLength(force);
+      if (!Number.isFinite(enteredAngle) || length <= 0) {
+        setEditor(null);
+        return;
+      }
+
+      const nextAngle = normalizeSignedAngle(enteredAngle);
+      const radians = (nextAngle * Math.PI) / 180;
+
+      setForces((current) =>
+        current.map((candidate) =>
+          candidate.id === force.id
+            ? {
+                ...candidate,
+                end: {
+                  x: candidate.start.x + Math.cos(radians) * length,
+                  y: candidate.start.y - Math.sin(radians) * length,
+                },
+              }
+            : candidate,
+        ),
+      );
       setEditor(null);
       return;
     }
@@ -788,6 +823,8 @@ export default function AppliedForceLayer() {
               editor?.forceId === force.id && editor.field === "name";
             const editingMagnitude =
               editor?.forceId === force.id && editor.field === "magnitude";
+            const editingAngle =
+              editor?.forceId === force.id && editor.field === "angle";
 
             return (
               <g key={force.id} opacity={isDraft ? 0.68 : 1}>
@@ -833,6 +870,7 @@ export default function AppliedForceLayer() {
                       />
                     )}
                     <text
+                      data-force-angle
                       x={angleInfo.label.x}
                       y={angleInfo.label.y}
                       fill="#68717c"
@@ -840,6 +878,10 @@ export default function AppliedForceLayer() {
                       fontWeight={600}
                       textAnchor="middle"
                       dominantBaseline="central"
+                      pointerEvents="auto"
+                      style={{ cursor: "text" }}
+                      visibility={editingAngle ? "hidden" : "visible"}
+                      onPointerDown={(event) => beginInlineEdit(force, "angle", event)}
                     >
                       {formatNumber(angleInfo.angle, 1)}°
                     </text>
@@ -931,8 +973,14 @@ export default function AppliedForceLayer() {
           <input
             ref={inputRef}
             type="text"
-            inputMode={editor.field === "magnitude" ? "decimal" : "text"}
-            aria-label={editor.field === "name" ? "Edit force name" : "Edit force magnitude"}
+            inputMode={editor.field === "name" ? "text" : "decimal"}
+            aria-label={
+              editor.field === "name"
+                ? "Edit force name"
+                : editor.field === "angle"
+                  ? "Edit force angle"
+                  : "Edit force magnitude"
+            }
             value={editor.value}
             style={{
               width: "100%",
@@ -943,7 +991,7 @@ export default function AppliedForceLayer() {
               background: "transparent",
               color: "#3f4852",
               fontFamily: "Arial, Helvetica, sans-serif",
-              fontSize: FORCE_LABEL_FONT_SIZE_PX,
+              fontSize: editor.field === "angle" ? 11 : FORCE_LABEL_FONT_SIZE_PX,
               fontWeight: 600,
               lineHeight: 1,
               textAlign: "center",
