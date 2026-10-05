@@ -104,6 +104,17 @@ function componentEquation(forces: ForceCalculation[], axis: "x" | "y") {
     .join(" + ");
 }
 
+function staticComponentEquation(forces: ForceCalculation[], axis: "x" | "y") {
+  if (forces.length === 0) return "0";
+
+  return forces
+    .map((force) => {
+      const trig = axis === "x" ? "cos" : "sin";
+      return `${formatNumber(force.magnitude)} ${trig}(${formatAngle(force.angle)}°)`;
+    })
+    .join(" + ");
+}
+
 export default function CalculationsPanel() {
   const [sidebarRoot, setSidebarRoot] = useState<HTMLElement | null>(null);
   const [open, setOpen] = useState(false);
@@ -163,6 +174,8 @@ export default function CalculationsPanel() {
   const validMass = Number.isFinite(massValue) && massValue > 0;
   const xEquation = componentEquation(forces, "x");
   const yEquation = componentEquation(forces, "y");
+  const staticXEquation = staticComponentEquation(forces, "x");
+  const staticYEquation = staticComponentEquation(forces, "y");
 
   if (!sidebarRoot) return null;
 
@@ -212,10 +225,10 @@ export default function CalculationsPanel() {
           {mode === "static" ? (
             <div className={styles.staticEquations}>
               <div className={styles.staticEquation}>
-                ΣFₓ = {forces.length > 0 ? `${xEquation} = 0` : "0"}
+                ΣFₓ = {forces.length > 0 ? `${staticXEquation} = ${formatNumber(totals.x)} N` : "0"}
               </div>
               <div className={styles.staticEquation}>
-                ΣFᵧ = {forces.length > 0 ? `${yEquation} = 0` : "0"}
+                ΣFᵧ = {forces.length > 0 ? `${staticYEquation} = ${formatNumber(totals.y)} N` : "0"}
               </div>
             </div>
           ) : (
