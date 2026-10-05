@@ -18,19 +18,8 @@ type ForceVector = {
   magnitude: number;
 };
 type ForceTool = "applied" | "distributed" | null;
-
-type ViewTransform = {
-  x: number;
-  y: number;
-  scale: number;
-  raw: string;
-};
-
-type ForceMove = {
-  id: string;
-  pointerId: number;
-  previousPoint: Point;
-};
+type ViewTransform = { x: number; y: number; scale: number; raw: string };
+type ForceMove = { id: string; pointerId: number; previousPoint: Point };
 
 const MIN_FORCE_LENGTH_PX = 8;
 const ARROW_HEAD_LENGTH_PX = 11;
@@ -74,22 +63,28 @@ function formatNumber(value: number, decimals = 2) {
   return Number(value.toFixed(decimals)).toString();
 }
 
-function arrowHeadPoints(start: Point, end: Point, scale: number) {
+function arrowGeometry(start: Point, end: Point, scale: number) {
   const dx = end.x - start.x;
   const dy = end.y - start.y;
   const length = Math.hypot(dx, dy);
-  if (length === 0) return "";
+
+  if (length === 0) {
+    return { shaftEnd: end, headPoints: "" };
+  }
 
   const ux = dx / length;
   const uy = dy / length;
   const px = -uy;
   const py = ux;
-  const headLength = ARROW_HEAD_LENGTH_PX / scale;
+  const headLength = Math.min(length, ARROW_HEAD_LENGTH_PX / scale);
   const halfWidth = ARROW_HEAD_HALF_WIDTH_PX / scale;
   const baseX = end.x - ux * headLength;
   const baseY = end.y - uy * headLength;
 
-  return `${end.x},${end.y} ${baseX + px * halfWidth},${baseY + py * halfWidth} ${baseX - px * halfWidth},${baseY - py * halfWidth}`;
+  return {
+    shaftEnd: { x: baseX, y: baseY },
+    headPoints: `${end.x},${end.y} ${baseX + px * halfWidth},${baseY + py * halfWidth} ${baseX - px * halfWidth},${baseY - py * halfWidth}`,
+  };
 }
 
 function forceLabelPosition(force: ForceVector, scale: number, labelText: string) {
@@ -108,14 +103,11 @@ function forceLabelPosition(force: ForceVector, scale: number, labelText: string
   let nx = -uy;
   let ny = ux;
 
-  // Keep the label on the visual upper side of the vector where possible.
   if (ny > 0) {
     nx *= -1;
     ny *= -1;
   }
 
-  // Offset by the label's projected half-size along the vector normal.
-  // This keeps the shaft clear of the text even for nearly vertical vectors.
   const estimatedWidth = Math.max(44, labelText.length * 7);
   const projectedHalfSize =
     Math.abs(nx) * (estimatedWidth / 2) +
@@ -132,28 +124,26 @@ function angleArc(force: ForceVector, scale: number) {
   const angle = forceAngle(force);
   const radius = ANGLE_RADIUS_PX / scale;
   const radians = (angle * Math.PI) / 180;
-  const startPoint = {
-    x: force.start.x + radius,
-    y: force.start.y,
-  };
+  const startPoint = { x: force.start.x + radius, y: force.start.y };
   const endPoint = {
     x: force.start.x + Math.cos(radians) * radius,
     y: force.start.y - Math.sin(radians) * radius,
   };
-
   const arcPath =
     Math.abs(angle) < 0.01
       ? null
       : `M ${startPoint.x} ${startPoint.y} A ${radius} ${radius} 0 0 ${angle < 0 ? 1 : 0} ${endPoint.x} ${endPoint.y}`;
-
   const labelRadius = radius + 11 / scale;
   const labelRadians = ((angle / 2) * Math.PI) / 180;
-  const label = {
-    x: force.start.x + Math.cos(labelRadians) * labelRadius,
-    y: force.start.y - Math.sin(labelRadians) * labelRadius,
-  };
 
-  return { angle, arcPath, label };
+  return {
+    angle,
+    arcPath,
+    label: {
+      x: force.start.x + Math.cos(labelRadians) * labelRadius,
+      y: force.start.y - Math.sin(labelRadians) * labelRadius,
+    },
+  };
 }
 
 export default function AppliedForceLayer() {
@@ -213,7 +203,6 @@ export default function AppliedForceLayer() {
 
     const previousCursor = canvas.style.cursor;
     canvas.style.cursor = "crosshair";
-
     let activePointerId: number | null = null;
     let activeForce: ForceVector | null = null;
 
@@ -277,7 +266,7 @@ export default function AppliedForceLayer() {
       const end = toWorldPoint(event);
       const screenLength =
         Math.hypot(end.x - activeForce.start.x, end.y - activeForce.start.y) * view.scale;
-      const completed: ForceVector = {
+      const completed = {
         ...activeForce,
         end,
         magnitude: Math.max(1, Math.round(screenLength)),
@@ -297,7 +286,7 @@ export default function AppliedForceLayer() {
       }
     }
 
-    function handleKeyDown(event: KeyboardEvent) {
+    function cancelDraft(event: KeyboardEvent) {
       if (event.key !== "Escape") return;
       activeForce = null;
       activePointerId = null;
@@ -308,7 +297,7 @@ export default function AppliedForceLayer() {
     canvas.addEventListener("pointermove", handlePointerMove);
     canvas.addEventListener("pointerup", finishPointer);
     canvas.addEventListener("pointercancel", finishPointer);
-    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("keydown", cancelDraft);
 
     return () => {
       canvas.style.cursor = previousCursor;
@@ -316,7 +305,7 @@ export default function AppliedForceLayer() {
       canvas.removeEventListener("pointermove", handlePointerMove);
       canvas.removeEventListener("pointerup", finishPointer);
       canvas.removeEventListener("pointercancel", finishPointer);
-      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keydown", cancelDraft);
     };
   }, [canvasRoot, tool, view.x, view.y, view.scale]);
 
@@ -405,10 +394,7 @@ export default function AppliedForceLayer() {
     }
   }
 
-  const vectors = useMemo(
-    () => (draft ? [...forces, draft] : forces),
-    [forces, draft],
-  );
+  const vectors = useMemo(() => (draft ? [...forces, draft] : forces), [forces, draft]);
 
   if (!canvasRoot) return null;
 
@@ -433,6 +419,7 @@ export default function AppliedForceLayer() {
           const label = forceLabelPosition(force, view.scale, labelText);
           const angleInfo = isSelected ? angleArc(force, view.scale) : null;
           const referenceLength = ANGLE_REFERENCE_LENGTH_PX / view.scale;
+          const arrow = arrowGeometry(force.start, force.end, view.scale);
 
           return (
             <g key={force.id} opacity={isDraft ? 0.68 : 1}>
@@ -503,15 +490,15 @@ export default function AppliedForceLayer() {
               <line
                 x1={force.start.x}
                 y1={force.start.y}
-                x2={force.end.x}
-                y2={force.end.y}
+                x2={arrow.shaftEnd.x}
+                y2={arrow.shaftEnd.y}
                 stroke={isSelected ? "#252c34" : "#3f4852"}
                 strokeWidth={isSelected ? 2.4 : 2}
                 strokeLinecap="round"
                 vectorEffect="non-scaling-stroke"
               />
               <polygon
-                points={arrowHeadPoints(force.start, force.end, view.scale)}
+                points={arrow.headPoints}
                 fill={isSelected ? "#252c34" : "#3f4852"}
               />
 
