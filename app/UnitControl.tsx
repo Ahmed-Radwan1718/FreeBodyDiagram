@@ -28,6 +28,7 @@ type DimensionEditor = {
   shapeId: string;
   axis: DimensionAxis;
   value: string;
+  initialValue: string;
 };
 
 const UNIT_OPTIONS: UnitOption[] = [
@@ -278,6 +279,7 @@ export default function UnitControl() {
         shapeId: metadata.shapeId,
         axis: metadata.axis,
         value,
+        initialValue: value,
       });
     }
 
@@ -348,6 +350,12 @@ export default function UnitControl() {
     if (!editor) return;
     const enteredValue = Number(editor.value);
     if (!Number.isFinite(enteredValue) || enteredValue <= 0) {
+      setEditor(null);
+      return;
+    }
+
+    const initialValue = Number(editor.initialValue);
+    if (Number.isFinite(initialValue) && enteredValue === initialValue) {
       setEditor(null);
       return;
     }
