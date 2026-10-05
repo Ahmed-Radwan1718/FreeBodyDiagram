@@ -5,6 +5,7 @@ import AppliedForceLayer from "./AppliedForceLayer";
 import CalculationsPanel from "./CalculationsPanel";
 import CanvasModeToggle from "./CanvasModeToggle";
 import DimensionPositioning from "./DimensionPositioning";
+import ForceCentroidGuides from "./ForceCentroidGuides";
 import ForcesPanel from "./ForcesPanel";
 import UnitControl from "./UnitControl";
 
@@ -24,6 +25,7 @@ export default function RootLayout({
         {children}
         <AppliedForceLayer />
         <AngleLabelPositioning />
+        <ForceCentroidGuides />
         <CanvasModeToggle />
         <DimensionPositioning />
         <ForcesPanel />
