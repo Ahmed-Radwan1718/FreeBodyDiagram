@@ -9,6 +9,7 @@ import DisplayPanel from "./DisplayPanel";
 import ForceCentroidGuides from "./ForceCentroidGuides";
 import ForcesPanel from "./ForcesPanel";
 import ShapeLabelOverride from "./ShapeLabelOverride";
+import SidebarDropdownMotion from "./SidebarDropdownMotion";
 import UnitControl from "./UnitControl";
 
 export const metadata: Metadata = {
@@ -34,6 +35,7 @@ export default function RootLayout({
         <CalculationsPanel />
         <DisplayPanel />
         <ShapeLabelOverride />
+        <SidebarDropdownMotion />
         <UnitControl />
       </body>
     </html>
