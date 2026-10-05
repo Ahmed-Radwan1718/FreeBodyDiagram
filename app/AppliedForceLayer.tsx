@@ -38,6 +38,13 @@ type ShapeSnap = {
   distancePx: number;
 };
 type ForceLabelField = "name" | "magnitude" | "angle";
+type ForceUnit = "N" | "kN" | "MN" | "mN";
+type ForceUnitOption = {
+  value: ForceUnit;
+  label: string;
+  newtonsPerUnit: number;
+  decimals: number;
+};
 type InlineEditor = {
   forceId: string;
   field: ForceLabelField;
@@ -46,6 +53,10 @@ type InlineEditor = {
   top: number;
   width: number;
   height: number;
+};
+type ForceUnitMenu = {
+  left: number;
+  top: number;
 };
 
 const MIN_FORCE_LENGTH_PX = 8;
@@ -60,6 +71,15 @@ const ANGLE_LABEL_RADIAL_CLEARANCE_PX = 18;
 const ANGLE_LABEL_RIGHT_OFFSET_PX = 8;
 const FORCE_SNAP_DISTANCE_PX = 12;
 const FORCE_SNAP_RELEASE_DISTANCE_PX = 24;
+const FORCE_UNIT_MENU_WIDTH_PX = 150;
+const FORCE_UNIT_MENU_ITEM_HEIGHT_PX = 36;
+
+const FORCE_UNIT_OPTIONS: ForceUnitOption[] = [
+  { value: "N", label: "Newtons", newtonsPerUnit: 1, decimals: 2 },
+  { value: "kN", label: "Kilonewtons", newtonsPerUnit: 1000, decimals: 4 },
+  { value: "MN", label: "Meganewtons", newtonsPerUnit: 1_000_000, decimals: 6 },
+  { value: "mN", label: "Millinewtons", newtonsPerUnit: 0.001, decimals: 2 },
+];
 
 function parseTransform(value: string | null): ViewTransform {
   const raw = value ?? "";
@@ -91,6 +111,15 @@ function forceAngle(force: ForceVector) {
 
 function formatNumber(value: number, decimals = 2) {
   return Number(value.toFixed(decimals)).toString();
+}
+
+function forceUnitOption(unit: ForceUnit) {
+  return FORCE_UNIT_OPTIONS.find((option) => option.value === unit) ?? FORCE_UNIT_OPTIONS[0];
+}
+
+function displayMagnitude(magnitudeInNewtons: number, unit: ForceUnit) {
+  const option = forceUnitOption(unit);
+  return magnitudeInNewtons / option.newtonsPerUnit;
 }
 
 function closestPointOnSegment(point: Point, start: Point, end: Point): Point {
@@ -325,6 +354,8 @@ export default function AppliedForceLayer() {
   const [draft, setDraft] = useState<ForceVector | null>(null);
   const [selectedForceId, setSelectedForceId] = useState<string | null>(null);
   const [editor, setEditor] = useState<InlineEditor | null>(null);
+  const [forceUnit, setForceUnit] = useState<ForceUnit>("N");
+  const [forceUnitMenu, setForceUnitMenu] = useState<ForceUnitMenu | null>(null);
   const [view, setView] = useState<ViewTransform>({
     x: 0,
     y: 0,
@@ -351,7 +382,10 @@ export default function AppliedForceLayer() {
     setCanvasRoot(canvas);
     setTool((document.documentElement.dataset.forceTool as ForceTool) ?? null);
 
-    const syncView = () => setView(parseTransform(worldGroup.getAttribute("transform")));
+    const syncView = () => {
+      setView(parseTransform(worldGroup.getAttribute("transform")));
+      setForceUnitMenu(null);
+    };
     const observer = new MutationObserver(syncView);
     observer.observe(worldGroup, { attributes: true, attributeFilter: ["transform"] });
     syncView();
@@ -368,11 +402,14 @@ export default function AppliedForceLayer() {
         event.target.closest("[data-force-vector]") ||
         event.target.closest("[data-force-label]") ||
         event.target.closest("[data-force-angle]") ||
-        event.target.closest("[data-force-editor]")
+        event.target.closest("[data-force-unit]") ||
+        event.target.closest("[data-force-editor]") ||
+        event.target.closest("[data-force-unit-menu]")
       ) {
         return;
       }
       setSelectedForceId(null);
+      setForceUnitMenu(null);
     }
 
     window.addEventListener("forcetoolchange", handleToolChange);
@@ -383,6 +420,12 @@ export default function AppliedForceLayer() {
       window.removeEventListener("forcetoolchange", handleToolChange);
       canvas.removeEventListener("pointerdown", clearSelectionOnCanvas);
     };
+  }, []);
+
+  useEffect(() => {
+    const closeMenu = () => setForceUnitMenu(null);
+    window.addEventListener("resize", closeMenu);
+    return () => window.removeEventListener("resize", closeMenu);
   }, []);
 
   useEffect(() => {
@@ -410,7 +453,9 @@ export default function AppliedForceLayer() {
           event.target.closest("[data-force-vector]") ||
           event.target.closest("[data-force-label]") ||
           event.target.closest("[data-force-angle]") ||
-          event.target.closest("[data-force-editor]"))
+          event.target.closest("[data-force-unit]") ||
+          event.target.closest("[data-force-editor]") ||
+          event.target.closest("[data-force-unit-menu]"))
       ) {
         return;
       }
@@ -418,6 +463,7 @@ export default function AppliedForceLayer() {
       event.preventDefault();
       event.stopPropagation();
       setSelectedForceId(null);
+      setForceUnitMenu(null);
 
       const point = toWorldPoint(event);
       const force: ForceVector = {
@@ -483,6 +529,7 @@ export default function AppliedForceLayer() {
       activeForce = null;
       activePointerId = null;
       setDraft(null);
+      setForceUnitMenu(null);
     }
 
     canvas.addEventListener("pointerdown", handlePointerDown);
@@ -517,6 +564,7 @@ export default function AppliedForceLayer() {
       setForces((current) => current.filter((force) => force.id !== selectedForceId));
       setSelectedForceId(null);
       setEditor(null);
+      setForceUnitMenu(null);
     }
 
     window.addEventListener("keydown", handleDelete);
@@ -540,6 +588,7 @@ export default function AppliedForceLayer() {
     event.preventDefault();
     event.stopPropagation();
     setEditor(null);
+    setForceUnitMenu(null);
     setSelectedForceId(force.id);
     moveRef.current = {
       id: force.id,
@@ -675,16 +724,18 @@ export default function AppliedForceLayer() {
     event.preventDefault();
     event.stopPropagation();
     cancelEditorRef.current = false;
+    setForceUnitMenu(null);
     setSelectedForceId(force.id);
 
     const rect = event.currentTarget.getBoundingClientRect();
     const canvasRect = canvasRoot.getBoundingClientRect();
+    const unitOption = forceUnitOption(forceUnit);
     const value =
       field === "name"
         ? force.name
         : field === "angle"
           ? formatNumber(forceAngle(force), 1)
-          : formatNumber(force.magnitude);
+          : formatNumber(displayMagnitude(force.magnitude, forceUnit), unitOption.decimals);
 
     setEditor({
       forceId: force.id,
@@ -695,6 +746,33 @@ export default function AppliedForceLayer() {
       width: Math.max(24, rect.width + 2),
       height: Math.max(16, rect.height),
     });
+  }
+
+  function openForceUnitMenu(
+    force: ForceVector,
+    event: ReactPointerEvent<SVGTSpanElement>,
+  ) {
+    if (!canvasRoot || event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    setEditor(null);
+    setSelectedForceId(force.id);
+
+    const rect = event.currentTarget.getBoundingClientRect();
+    const canvasRect = canvasRoot.getBoundingClientRect();
+    const menuHeight = FORCE_UNIT_OPTIONS.length * FORCE_UNIT_MENU_ITEM_HEIGHT_PX + 8;
+    const preferredLeft = rect.left - canvasRect.left - 8;
+    const preferredTop = rect.bottom - canvasRect.top + 6;
+    const left = Math.max(
+      6,
+      Math.min(preferredLeft, canvasRect.width - FORCE_UNIT_MENU_WIDTH_PX - 6),
+    );
+    const top =
+      preferredTop + menuHeight <= canvasRect.height
+        ? preferredTop
+        : Math.max(6, rect.top - canvasRect.top - menuHeight - 6);
+
+    setForceUnitMenu({ left, top });
   }
 
   function commitEditor() {
@@ -751,12 +829,14 @@ export default function AppliedForceLayer() {
       return;
     }
 
-    const nextMagnitude = Number(editor.value);
-    if (!Number.isFinite(nextMagnitude) || nextMagnitude <= 0) {
+    const enteredMagnitude = Number(editor.value);
+    if (!Number.isFinite(enteredMagnitude) || enteredMagnitude <= 0) {
       setEditor(null);
       return;
     }
 
+    const option = forceUnitOption(forceUnit);
+    const nextMagnitude = enteredMagnitude * option.newtonsPerUnit;
     const length = vectorLength(force);
     if (length <= 0 || force.magnitude <= 0) {
       setForces((current) =>
@@ -793,6 +873,7 @@ export default function AppliedForceLayer() {
   }
 
   const vectors = useMemo(() => (draft ? [...forces, draft] : forces), [forces, draft]);
+  const selectedUnitOption = forceUnitOption(forceUnit);
 
   if (!canvasRoot) return null;
 
@@ -814,7 +895,9 @@ export default function AppliedForceLayer() {
           {vectors.map((force) => {
             const isDraft = draft?.id === force.id;
             const isSelected = !isDraft && selectedForceId === force.id;
-            const labelText = `${force.name} = ${formatNumber(force.magnitude)} N`;
+            const shownMagnitude = displayMagnitude(force.magnitude, forceUnit);
+            const shownMagnitudeText = formatNumber(shownMagnitude, selectedUnitOption.decimals);
+            const labelText = `${force.name} = ${shownMagnitudeText} ${forceUnit}`;
             const label = forceLabelPosition(force, view.scale, labelText);
             const angleInfo = isSelected ? angleArc(force, view.scale) : null;
             const referenceLength = ANGLE_REFERENCE_LENGTH_PX / view.scale;
@@ -944,9 +1027,24 @@ export default function AppliedForceLayer() {
                         if (!isDraft) beginInlineEdit(force, "magnitude", event);
                       }}
                     >
-                      {formatNumber(force.magnitude)}
+                      {shownMagnitudeText}
                     </tspan>
-                    <tspan pointerEvents="none"> N</tspan>
+                    <tspan pointerEvents="none"> </tspan>
+                    <tspan
+                      data-force-unit
+                      pointerEvents={isDraft ? "none" : "auto"}
+                      style={{
+                        cursor: isDraft ? "default" : "pointer",
+                        textDecoration: isDraft ? "none" : "underline",
+                        textDecorationThickness: 0.7,
+                        textUnderlineOffset: 2,
+                      }}
+                      onPointerDown={(event) => {
+                        if (!isDraft) openForceUnitMenu(force, event);
+                      }}
+                    >
+                      {forceUnit}
+                    </tspan>
                   </text>
                 )}
               </g>
@@ -954,6 +1052,61 @@ export default function AppliedForceLayer() {
           })}
         </g>
       </svg>
+
+      {forceUnitMenu && (
+        <div
+          data-force-unit-menu
+          role="menu"
+          aria-label="Choose force unit"
+          style={{
+            position: "absolute",
+            zIndex: 4,
+            left: forceUnitMenu.left,
+            top: forceUnitMenu.top,
+            width: FORCE_UNIT_MENU_WIDTH_PX,
+            padding: 4,
+            border: "1px solid #d8dde3",
+            borderRadius: 6,
+            background: "#ffffff",
+            boxShadow: "0 7px 20px rgba(22, 29, 37, 0.12)",
+            pointerEvents: "auto",
+          }}
+          onPointerDown={(event) => event.stopPropagation()}
+        >
+          {FORCE_UNIT_OPTIONS.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              role="menuitemradio"
+              aria-checked={forceUnit === option.value}
+              style={{
+                width: "100%",
+                height: FORCE_UNIT_MENU_ITEM_HEIGHT_PX,
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                padding: "0 10px",
+                border: 0,
+                borderRadius: 4,
+                background: forceUnit === option.value ? "#eef1f4" : "transparent",
+                color: "#343d47",
+                fontFamily: "Arial, Helvetica, sans-serif",
+                fontSize: 12,
+                textAlign: "left",
+                cursor: "pointer",
+              }}
+              onClick={() => {
+                setForceUnit(option.value);
+                setForceUnitMenu(null);
+              }}
+            >
+              <span style={{ width: 28, fontWeight: 700 }}>{option.value}</span>
+              <span style={{ flex: 1, color: "#68717c" }}>{option.label}</span>
+              {forceUnit === option.value && <span aria-hidden="true">✓</span>}
+            </button>
+          ))}
+        </div>
+      )}
 
       {editor && (
         <div
@@ -979,7 +1132,7 @@ export default function AppliedForceLayer() {
                 ? "Edit force name"
                 : editor.field === "angle"
                   ? "Edit force angle"
-                  : "Edit force magnitude"
+                  : `Edit force magnitude in ${forceUnit}`
             }
             value={editor.value}
             style={{
