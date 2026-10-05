@@ -14,8 +14,12 @@ const MAJOR_GRID_MULTIPLIER = 5;
 const DIMENSION_OFFSET = 28;
 const DIMENSION_ARROW_SIZE = 7;
 const PARTICLE_SIZE = 14;
+const POLYGON_CLOSE_RADIUS = 10;
+const POLYGON_MIN_AREA = 0.0001;
 
 type ShapeType = "rectangle" | "circle" | "polygon" | "triangle" | "particle";
+
+type Point = { x: number; y: number };
 
 type CanvasShape = {
   id: string;
@@ -24,9 +28,14 @@ type CanvasShape = {
   y: number;
   width: number;
   height: number;
+  vertices?: Point[];
 };
 
-type Point = { x: number; y: number };
+type PolygonDraft = {
+  id: string;
+  vertices: Point[];
+  hover: Point | null;
+};
 
 function modulo(value: number, divisor: number) {
   return ((value % divisor) + divisor) % divisor;
@@ -34,21 +43,6 @@ function modulo(value: number, divisor: number) {
 
 function formatDimension(value: number) {
   return Number((value / BASE_GRID_SIZE).toFixed(2)).toString();
-}
-
-function polygonPoints(shape: CanvasShape, sides = 5) {
-  const centerX = shape.x + shape.width / 2;
-  const centerY = shape.y + shape.height / 2;
-  const radiusX = shape.width / 2;
-  const radiusY = shape.height / 2;
-
-  return Array.from({ length: sides }, (_, index) => {
-    const angle = -Math.PI / 2 + (index * Math.PI * 2) / sides;
-    return {
-      x: centerX + Math.cos(angle) * radiusX,
-      y: centerY + Math.sin(angle) * radiusY,
-    };
-  });
 }
 
 function trianglePoints(shape: CanvasShape) {
@@ -61,6 +55,50 @@ function trianglePoints(shape: CanvasShape) {
 
 function pointsAttribute(points: Point[]) {
   return points.map((point) => `${point.x},${point.y}`).join(" ");
+}
+
+function pointDistanceSquared(a: Point, b: Point) {
+  const dx = a.x - b.x;
+  const dy = a.y - b.y;
+  return dx * dx + dy * dy;
+}
+
+function polygonArea(vertices: Point[]) {
+  if (vertices.length < 3) return 0;
+
+  let twiceArea = 0;
+  for (let index = 0; index < vertices.length; index += 1) {
+    const current = vertices[index];
+    const next = vertices[(index + 1) % vertices.length];
+    twiceArea += current.x * next.y - next.x * current.y;
+  }
+
+  return Math.abs(twiceArea) / 2;
+}
+
+function polygonBounds(vertices: Point[]) {
+  const xs = vertices.map((point) => point.x);
+  const ys = vertices.map((point) => point.y);
+  const minX = Math.min(...xs);
+  const maxX = Math.max(...xs);
+  const minY = Math.min(...ys);
+  const maxY = Math.max(...ys);
+
+  return {
+    x: minX,
+    y: minY,
+    width: maxX - minX,
+    height: maxY - minY,
+  };
+}
+
+function polygonShape(id: string, vertices: Point[]): CanvasShape {
+  return {
+    id,
+    type: "polygon",
+    ...polygonBounds(vertices),
+    vertices,
+  };
 }
 
 function pointInPolygon(point: Point, vertices: Point[]) {
@@ -98,7 +136,7 @@ function shapeContainsPoint(shape: CanvasShape, point: Point) {
   }
 
   if (shape.type === "polygon") {
-    return pointInPolygon(point, polygonPoints(shape));
+    return shape.vertices ? pointInPolygon(point, shape.vertices) : false;
   }
 
   return (
@@ -110,7 +148,7 @@ function shapeContainsPoint(shape: CanvasShape, point: Point) {
 }
 
 function shapeFromDrag(
-  type: Exclude<ShapeType, "particle">,
+  type: Exclude<ShapeType, "particle" | "polygon">,
   id: string,
   startX: number,
   startY: number,
@@ -150,12 +188,13 @@ export default function Home() {
   const [selectedCanvasShapeId, setSelectedCanvasShapeId] = useState<string | null>(null);
   const [shapes, setShapes] = useState<CanvasShape[]>([]);
   const [draftShape, setDraftShape] = useState<CanvasShape | null>(null);
+  const [polygonDraft, setPolygonDraft] = useState<PolygonDraft | null>(null);
 
   const nextShapeId = useRef(1);
   const panRef = useRef<{ pointerId: number; x: number; y: number } | null>(null);
   const drawRef = useRef<{
     pointerId: number;
-    type: Exclude<ShapeType, "particle">;
+    type: Exclude<ShapeType, "particle" | "polygon">;
     startX: number;
     startY: number;
     current: CanvasShape;
@@ -183,9 +222,6 @@ export default function Home() {
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
-      if (!selectedCanvasShapeId) return;
-      if (event.key !== "Delete" && event.key !== "Backspace") return;
-
       const target = event.target as HTMLElement | null;
       if (
         target instanceof HTMLInputElement ||
@@ -196,6 +232,16 @@ export default function Home() {
         return;
       }
 
+      if (event.key === "Escape" && polygonDraft) {
+        event.preventDefault();
+        setPolygonDraft(null);
+        finishShapeTool();
+        return;
+      }
+
+      if (!selectedCanvasShapeId) return;
+      if (event.key !== "Delete" && event.key !== "Backspace") return;
+
       event.preventDefault();
       setShapes((current) =>
         current.filter((shape) => shape.id !== selectedCanvasShapeId),
@@ -205,7 +251,7 @@ export default function Home() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [selectedCanvasShapeId]);
+  }, [polygonDraft, selectedCanvasShapeId]);
 
   function getWorldPoint(event: ReactPointerEvent<HTMLElement>) {
     const rect = event.currentTarget.getBoundingClientRect();
@@ -221,13 +267,62 @@ export default function Home() {
   function finishShapeTool() {
     setSelectedShape(null);
     setShapesOpen(false);
+    setPolygonDraft(null);
+  }
+
+  function handlePolygonClick(point: Point) {
+    setSelectedCanvasShapeId(null);
+
+    if (!polygonDraft) {
+      setPolygonDraft({
+        id: `polygon-${nextShapeId.current++}`,
+        vertices: [point],
+        hover: point,
+      });
+      return;
+    }
+
+    const firstVertex = polygonDraft.vertices[0];
+    const lastVertex = polygonDraft.vertices[polygonDraft.vertices.length - 1];
+    const closeRadius = POLYGON_CLOSE_RADIUS / scale;
+    const closeRadiusSquared = closeRadius * closeRadius;
+
+    if (pointDistanceSquared(point, firstVertex) <= closeRadiusSquared) {
+      if (
+        polygonDraft.vertices.length >= 3 &&
+        polygonArea(polygonDraft.vertices) > POLYGON_MIN_AREA
+      ) {
+        const shape = polygonShape(polygonDraft.id, polygonDraft.vertices);
+        setShapes((current) => [...current, shape]);
+        setSelectedCanvasShapeId(shape.id);
+        finishShapeTool();
+      }
+      return;
+    }
+
+    const duplicateRadius = 2 / scale;
+    if (pointDistanceSquared(point, lastVertex) <= duplicateRadius * duplicateRadius) {
+      return;
+    }
+
+    setPolygonDraft({
+      ...polygonDraft,
+      vertices: [...polygonDraft.vertices, point],
+      hover: point,
+    });
   }
 
   function handlePointerDown(event: ReactPointerEvent<HTMLElement>) {
     if (event.button !== 0) return;
 
-    event.currentTarget.setPointerCapture(event.pointerId);
     const point = getWorldPoint(event);
+
+    if (selectedShape === "polygon") {
+      handlePolygonClick(point);
+      return;
+    }
+
+    event.currentTarget.setPointerCapture(event.pointerId);
 
     if (selectedShape === "particle") {
       const particle: CanvasShape = {
@@ -285,6 +380,12 @@ export default function Home() {
   }
 
   function handlePointerMove(event: ReactPointerEvent<HTMLElement>) {
+    if (selectedShape === "polygon" && polygonDraft) {
+      const point = getWorldPoint(event);
+      setPolygonDraft((current) => (current ? { ...current, hover: point } : current));
+      return;
+    }
+
     const drawing = drawRef.current;
     if (drawing && drawing.pointerId === event.pointerId) {
       const point = getWorldPoint(event);
@@ -305,11 +406,28 @@ export default function Home() {
     if (moving && moving.pointerId === event.pointerId) {
       const point = getWorldPoint(event);
       setShapes((current) =>
-        current.map((shape) =>
-          shape.id === moving.id
-            ? { ...shape, x: point.x - moving.offsetX, y: point.y - moving.offsetY }
-            : shape,
-        ),
+        current.map((shape) => {
+          if (shape.id !== moving.id) return shape;
+
+          const nextX = point.x - moving.offsetX;
+          const nextY = point.y - moving.offsetY;
+
+          if (shape.type === "polygon" && shape.vertices) {
+            const dx = nextX - shape.x;
+            const dy = nextY - shape.y;
+            return {
+              ...shape,
+              x: nextX,
+              y: nextY,
+              vertices: shape.vertices.map((vertex) => ({
+                x: vertex.x + dx,
+                y: vertex.y + dy,
+              })),
+            };
+          }
+
+          return { ...shape, x: nextX, y: nextY };
+        }),
       );
       return;
     }
@@ -383,6 +501,7 @@ export default function Home() {
 
   function toggleShape(shape: ShapeType) {
     setSelectedCanvasShapeId(null);
+    setPolygonDraft(null);
     setSelectedShape((current) => (current === shape ? null : shape));
   }
 
@@ -420,7 +539,7 @@ export default function Home() {
         <polygon
           key={shape.id}
           className={className}
-          points={pointsAttribute(polygonPoints(shape))}
+          points={pointsAttribute(shape.vertices ?? [])}
           vectorEffect="non-scaling-stroke"
         />
       );
@@ -436,6 +555,39 @@ export default function Home() {
         height={shape.height}
         vectorEffect="non-scaling-stroke"
       />
+    );
+  }
+
+  function renderPolygonDraft() {
+    if (!polygonDraft) return null;
+
+    const previewPoints = polygonDraft.hover
+      ? [...polygonDraft.vertices, polygonDraft.hover]
+      : polygonDraft.vertices;
+
+    return (
+      <g className="polygonDraft">
+        <polyline
+          points={pointsAttribute(previewPoints)}
+          fill="none"
+          stroke="#555f6b"
+          strokeWidth={1.8}
+          strokeDasharray="6 4"
+          vectorEffect="non-scaling-stroke"
+        />
+        {polygonDraft.vertices.map((vertex, index) => (
+          <circle
+            key={`${polygonDraft.id}-vertex-${index}`}
+            cx={vertex.x}
+            cy={vertex.y}
+            r={5 / scale}
+            fill={index === 0 ? "#555f6b" : "#fafafa"}
+            stroke="#555f6b"
+            strokeWidth={1.8}
+            vectorEffect="non-scaling-stroke"
+          />
+        ))}
+      </g>
     );
   }
 
@@ -548,6 +700,14 @@ export default function Home() {
                   <span>{option.label}</span>
                 </button>
               ))}
+              {selectedShape === "polygon" && (
+                <p
+                  className="sidebarHint"
+                  style={{ gridColumn: "1 / -1", paddingTop: 2, fontSize: 11 }}
+                >
+                  Click to place vertices. Click the first point to close the shape. Press Esc to cancel.
+                </p>
+              )}
             </div>
           )}
         </div>
@@ -578,6 +738,7 @@ export default function Home() {
           <g transform={`translate(${camera.x} ${camera.y}) scale(${scale})`}>
             {shapes.map((shape) => renderShape(shape))}
             {draftShape && renderShape(draftShape, true)}
+            {renderPolygonDraft()}
           </g>
           {shapes.map(renderShapeDimensions)}
           {draftShape && renderShapeDimensions(draftShape)}
