@@ -39,6 +39,8 @@ const FORCE_LABEL_HEIGHT_PX = 14;
 const FORCE_LABEL_CLEARANCE_PX = 7;
 const ANGLE_RADIUS_PX = 28;
 const ANGLE_REFERENCE_LENGTH_PX = 42;
+const ANGLE_LABEL_RADIAL_CLEARANCE_PX = 18;
+const ANGLE_LABEL_RIGHT_OFFSET_PX = 8;
 
 function parseTransform(value: string | null): ViewTransform {
   const raw = value ?? "";
@@ -143,14 +145,17 @@ function angleArc(force: ForceVector, scale: number) {
     Math.abs(angle) < 0.01
       ? null
       : `M ${startPoint.x} ${startPoint.y} A ${radius} ${radius} 0 0 ${angle < 0 ? 1 : 0} ${endPoint.x} ${endPoint.y}`;
-  const labelRadius = radius + 11 / scale;
+  const labelRadius = radius + ANGLE_LABEL_RADIAL_CLEARANCE_PX / scale;
   const labelRadians = ((angle / 2) * Math.PI) / 180;
 
   return {
     angle,
     arcPath,
     label: {
-      x: force.start.x + Math.cos(labelRadians) * labelRadius,
+      x:
+        force.start.x +
+        Math.cos(labelRadians) * labelRadius +
+        ANGLE_LABEL_RIGHT_OFFSET_PX / scale,
       y: force.start.y - Math.sin(labelRadians) * labelRadius,
     },
   };
