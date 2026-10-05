@@ -284,12 +284,13 @@ export default function Home() {
           if (shape.type === "circle") {
             const centerX = shape.x + shape.width / 2;
             const centerY = shape.y + shape.height / 2;
+            const nextDiameter = nextSize * 2;
             return {
               ...shape,
-              x: centerX - nextSize / 2,
-              y: centerY - nextSize / 2,
-              width: nextSize,
-              height: nextSize,
+              x: centerX - nextDiameter / 2,
+              y: centerY - nextDiameter / 2,
+              width: nextDiameter,
+              height: nextDiameter,
             };
           }
 
@@ -659,6 +660,51 @@ export default function Home() {
     const height = bottom - top;
     const centerX = (left + right) / 2;
     const centerY = (top + bottom) / 2;
+
+    if (shape.type === "circle") {
+      const radius = width / 2;
+      const radiusLabel = formatDimension(shape.width / 2);
+      const radiusFullLabel = `${radiusLabel} · cm`;
+      const radiusLabelWidth = Math.max(44, radiusFullLabel.length * 7 + 14);
+      const radiusLabelX = centerX + radius / 2;
+      const radiusArrow = Math.min(DIMENSION_ARROW_SIZE, Math.max(3, radius / 4));
+
+      return (
+        <g key={`${shape.id}-dimensions`} className="dimensionAnnotation">
+          <line
+            className="dimensionLine"
+            x1={centerX}
+            y1={centerY}
+            x2={right}
+            y2={centerY}
+          />
+          <polygon
+            className="dimensionArrow"
+            points={`${right},${centerY} ${right - radiusArrow},${centerY - 3.5} ${right - radiusArrow},${centerY + 3.5}`}
+          />
+          <rect
+            className="dimensionLabelBackground"
+            x={radiusLabelX - radiusLabelWidth / 2}
+            y={centerY - 9}
+            width={radiusLabelWidth}
+            height={18}
+            rx={2}
+          />
+          <text
+            className="dimensionLabel"
+            x={radiusLabelX}
+            y={centerY}
+            data-shape-id={shape.id}
+            data-dimension-axis="width"
+          >
+            <tspan className="dimensionValue">{radiusLabel}</tspan>
+            <tspan className="dimensionSeparator"> · </tspan>
+            <tspan className="dimensionUnit">cm</tspan>
+          </text>
+        </g>
+      );
+    }
+
     const horizontalBelow = shape.type === "triangle";
     const horizontalY = horizontalBelow
       ? bottom + DIMENSION_OFFSET
