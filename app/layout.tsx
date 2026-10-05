@@ -10,6 +10,7 @@ import ForceCentroidGuides from "./ForceCentroidGuides";
 import ForcesPanel from "./ForcesPanel";
 import ShapeLabelOverride from "./ShapeLabelOverride";
 import SidebarDropdownMotion from "./SidebarDropdownMotion";
+import SupportReactionForces from "./SupportReactionForces";
 import SupportsPanel from "./SupportsPanel";
 import UnitControl from "./UnitControl";
 
@@ -33,6 +34,7 @@ export default function RootLayout({
         <CanvasModeToggle />
         <DimensionPositioning />
         <SupportsPanel />
+        <SupportReactionForces />
         <ForcesPanel />
         <CalculationsPanel />
         <DisplayPanel />
