@@ -78,16 +78,15 @@ function vectorLength(force: ForceVector) {
   return Math.hypot(force.end.x - force.start.x, force.end.y - force.start.y);
 }
 
-function normalizeSignedAngle(angle: number) {
-  let normalized = ((angle + 180) % 360 + 360) % 360 - 180;
-  if (Math.abs(normalized + 180) < 0.0001) normalized = 180;
-  return normalized;
+function normalizeAngle(angle: number) {
+  const normalized = ((angle % 360) + 360) % 360;
+  return Math.abs(normalized - 360) < 0.0001 ? 0 : normalized;
 }
 
 function forceAngle(force: ForceVector) {
   const dx = force.end.x - force.start.x;
   const dy = force.end.y - force.start.y;
-  return normalizeSignedAngle((Math.atan2(-dy, dx) * 180) / Math.PI);
+  return normalizeAngle((Math.atan2(-dy, dx) * 180) / Math.PI);
 }
 
 function formatNumber(value: number, decimals = 2) {
@@ -298,10 +297,11 @@ function angleArc(force: ForceVector, scale: number) {
     x: force.start.x + Math.cos(radians) * radius,
     y: force.start.y - Math.sin(radians) * radius,
   };
+  const largeArcFlag = angle > 180 ? 1 : 0;
   const arcPath =
     Math.abs(angle) < 0.01
       ? null
-      : `M ${startPoint.x} ${startPoint.y} A ${radius} ${radius} 0 0 ${angle < 0 ? 1 : 0} ${endPoint.x} ${endPoint.y}`;
+      : `M ${startPoint.x} ${startPoint.y} A ${radius} ${radius} 0 ${largeArcFlag} 0 ${endPoint.x} ${endPoint.y}`;
   const labelRadius = radius + ANGLE_LABEL_RADIAL_CLEARANCE_PX / scale;
   const labelRadians = ((angle / 2) * Math.PI) / 180;
 
@@ -731,7 +731,7 @@ export default function AppliedForceLayer() {
         return;
       }
 
-      const nextAngle = normalizeSignedAngle(enteredAngle);
+      const nextAngle = normalizeAngle(enteredAngle);
       const radians = (nextAngle * Math.PI) / 180;
 
       setForces((current) =>
