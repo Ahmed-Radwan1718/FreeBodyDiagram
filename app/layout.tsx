@@ -10,6 +10,7 @@ import ForceCentroidGuides from "./ForceCentroidGuides";
 import ForcesPanel from "./ForcesPanel";
 import ShapeLabelOverride from "./ShapeLabelOverride";
 import SidebarDropdownMotion from "./SidebarDropdownMotion";
+import SupportsPanel from "./SupportsPanel";
 import UnitControl from "./UnitControl";
 
 export const metadata: Metadata = {
@@ -31,6 +32,7 @@ export default function RootLayout({
         <ForceCentroidGuides />
         <CanvasModeToggle />
         <DimensionPositioning />
+        <SupportsPanel />
         <ForcesPanel />
         <CalculationsPanel />
         <DisplayPanel />
