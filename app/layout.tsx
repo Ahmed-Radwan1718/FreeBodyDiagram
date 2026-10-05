@@ -7,6 +7,7 @@ import CanvasModeToggle from "./CanvasModeToggle";
 import DimensionPositioning from "./DimensionPositioning";
 import ForceCentroidGuides from "./ForceCentroidGuides";
 import ForcesPanel from "./ForcesPanel";
+import ShapeLabelOverride from "./ShapeLabelOverride";
 import UnitControl from "./UnitControl";
 
 export const metadata: Metadata = {
@@ -30,6 +31,7 @@ export default function RootLayout({
         <DimensionPositioning />
         <ForcesPanel />
         <CalculationsPanel />
+        <ShapeLabelOverride />
         <UnitControl />
       </body>
     </html>
