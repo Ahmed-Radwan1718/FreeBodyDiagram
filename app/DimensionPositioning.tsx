@@ -130,23 +130,59 @@ function parseScale(drawingLayer: SVGSVGElement) {
   return Number.isFinite(scale) && scale > 0 ? scale : 1;
 }
 
-function forceTouchesShape(shape: SVGGraphicsElement, canvas: HTMLElement, scale: number) {
+function forceTouchesDisplayedDimensionSide(
+  shape: SVGGraphicsElement,
+  group: SVGGElement,
+  canvas: HTMLElement,
+  scale: number,
+) {
+  let bounds: DOMRect;
+  try {
+    bounds = shape.getBBox();
+  } catch {
+    return false;
+  }
+
+  const top = bounds.y;
+  const bottom = bounds.y + bounds.height;
+  const right = bounds.x + bounds.width;
+  const centerY = top + bounds.height / 2;
+
+  let horizontalDimensionSide = group.dataset.horizontalDimensionSide;
+  if (horizontalDimensionSide !== "top" && horizontalDimensionSide !== "bottom") {
+    const horizontalLine = Array.from(
+      group.querySelectorAll<SVGLineElement>(".dimensionLine"),
+    ).find(isHorizontalLine);
+    if (!horizontalLine) return false;
+
+    const currentY = Number(horizontalLine.getAttribute("y1"));
+    if (!Number.isFinite(currentY)) return false;
+    horizontalDimensionSide = currentY > centerY ? "bottom" : "top";
+    group.dataset.horizontalDimensionSide = horizontalDimensionSide;
+  }
+
+  const horizontalSideY = horizontalDimensionSide === "bottom" ? bottom : top;
+  const sideTolerance = FORCE_TOUCH_DISTANCE_PX / scale + EPSILON;
   const lines = canvas.querySelectorAll<SVGLineElement>("line[data-force-vector]");
 
   for (const line of lines) {
-    const points = [
-      { x: Number(line.getAttribute("x1")), y: Number(line.getAttribute("y1")) },
-      { x: Number(line.getAttribute("x2")), y: Number(line.getAttribute("y2")) },
-    ];
+    const point = {
+      x: Number(line.getAttribute("x2")),
+      y: Number(line.getAttribute("y2")),
+    };
+    if (![point.x, point.y].every(Number.isFinite)) continue;
 
-    for (const point of points) {
-      if (![point.x, point.y].every(Number.isFinite)) continue;
-      const edgePoint = closestPointOnShape(shape, point);
-      if (!edgePoint) continue;
+    const edgePoint = closestPointOnShape(shape, point);
+    if (!edgePoint) continue;
 
-      const distancePx = Math.hypot(edgePoint.x - point.x, edgePoint.y - point.y) * scale;
-      if (distancePx <= FORCE_TOUCH_DISTANCE_PX) return true;
-    }
+    const distancePx = Math.hypot(edgePoint.x - point.x, edgePoint.y - point.y) * scale;
+    if (distancePx > FORCE_TOUCH_DISTANCE_PX) continue;
+
+    const touchesHorizontalDimensionSide =
+      Math.abs(edgePoint.y - horizontalSideY) <= sideTolerance;
+    const touchesRightDimensionSide = Math.abs(edgePoint.x - right) <= sideTolerance;
+
+    if (touchesHorizontalDimensionSide || touchesRightDimensionSide) return true;
   }
 
   return false;
@@ -399,7 +435,12 @@ function updateDimensionPositions() {
   if (!selectedShape || !dimensionGroup) return;
 
   const scale = parseScale(drawingLayer);
-  const inside = forceTouchesShape(selectedShape, canvas, scale);
+  const inside = forceTouchesDisplayedDimensionSide(
+    selectedShape,
+    dimensionGroup,
+    canvas,
+    scale,
+  );
   positionDimensions(dimensionGroup, selectedShape, inside);
 }
 
