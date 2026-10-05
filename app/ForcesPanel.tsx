@@ -49,11 +49,12 @@ export default function ForcesPanel() {
       return label?.textContent?.trim() === "Forces" && !section.querySelector("button");
     });
 
-    if (existingForcesSection) existingForcesSection.hidden = true;
+    const previousDisplay = existingForcesSection?.style.display ?? "";
+    if (existingForcesSection) existingForcesSection.style.display = "none";
     setSidebarRoot(sidebar);
 
     return () => {
-      if (existingForcesSection) existingForcesSection.hidden = false;
+      if (existingForcesSection) existingForcesSection.style.display = previousDisplay;
     };
   }, []);
 
