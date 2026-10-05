@@ -95,10 +95,16 @@ function updateDimensionLabels(unit: LengthUnit) {
     ) {
       const centerX = Number(label.getAttribute("x"));
       const labelWidth = Math.max(44, nextLabel.length * 7 + 14);
+      const nextWidth = String(labelWidth);
+      const nextX = String(centerX - labelWidth / 2);
 
       if (Number.isFinite(centerX)) {
-        background.setAttribute("width", String(labelWidth));
-        background.setAttribute("x", String(centerX - labelWidth / 2));
+        if (background.getAttribute("width") !== nextWidth) {
+          background.setAttribute("width", nextWidth);
+        }
+        if (background.getAttribute("x") !== nextX) {
+          background.setAttribute("x", nextX);
+        }
       }
     }
   });
@@ -132,6 +138,8 @@ export default function UnitControl() {
       subtree: true,
       childList: true,
       characterData: true,
+      attributes: true,
+      attributeFilter: ["x"],
     });
 
     scheduleUpdate();
