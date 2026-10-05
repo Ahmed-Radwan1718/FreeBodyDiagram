@@ -72,32 +72,6 @@ button {
   gap: 10px;
 }
 
-.sidebarSection > .sectionHeading + * {
-  overflow: hidden;
-  transform-origin: top;
-  animation: sidebarDropdownOpen 240ms cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-
-@keyframes sidebarDropdownOpen {
-  from {
-    max-height: 0;
-    opacity: 0;
-    transform: translateY(-6px);
-  }
-
-  to {
-    max-height: 640px;
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .sidebarSection > .sectionHeading + * {
-    animation: none;
-  }
-}
-
 .sectionHeading {
   display: flex;
   align-items: center;
@@ -150,7 +124,7 @@ button {
   stroke-width: 1.8;
   stroke-linecap: round;
   stroke-linejoin: round;
-  transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
+  transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .sectionChevron.isOpen {
