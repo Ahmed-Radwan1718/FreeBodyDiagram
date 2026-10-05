@@ -416,8 +416,14 @@ export default function Home() {
     );
   }
 
-  function renderRectangleDimensions(shape: CanvasShape) {
-    if (shape.type !== "rectangle") return null;
+  function renderShapeDimensions(shape: CanvasShape) {
+    if (
+      shape.type !== "rectangle" &&
+      shape.type !== "circle" &&
+      shape.type !== "triangle"
+    ) {
+      return null;
+    }
 
     const left = camera.x + shape.x * scale;
     const top = camera.y + shape.y * scale;
@@ -427,7 +433,10 @@ export default function Home() {
     const height = bottom - top;
     const centerX = (left + right) / 2;
     const centerY = (top + bottom) / 2;
-    const horizontalY = top - DIMENSION_OFFSET;
+    const horizontalBelow = shape.type === "triangle";
+    const horizontalY = horizontalBelow
+      ? bottom + DIMENSION_OFFSET
+      : top - DIMENSION_OFFSET;
     const verticalX = right + DIMENSION_OFFSET;
     const horizontalArrow = Math.min(
       DIMENSION_ARROW_SIZE,
@@ -441,12 +450,32 @@ export default function Home() {
     const heightLabel = formatDimension(shape.height);
     const widthLabelWidth = Math.max(28, widthLabel.length * 7 + 12);
     const heightLabelWidth = Math.max(28, heightLabel.length * 7 + 12);
+    const horizontalShapeY = horizontalBelow ? bottom : top;
+    const horizontalGapDirection = horizontalBelow ? 1 : -1;
 
     return (
       <g key={`${shape.id}-dimensions`} className="dimensionAnnotation">
-        <line className="dimensionExtension" x1={left} y1={top - 4} x2={left} y2={horizontalY - 5} />
-        <line className="dimensionExtension" x1={right} y1={top - 4} x2={right} y2={horizontalY - 5} />
-        <line className="dimensionLine" x1={left} y1={horizontalY} x2={right} y2={horizontalY} />
+        <line
+          className="dimensionExtension"
+          x1={left}
+          y1={horizontalShapeY + horizontalGapDirection * 4}
+          x2={left}
+          y2={horizontalY + horizontalGapDirection * 5}
+        />
+        <line
+          className="dimensionExtension"
+          x1={right}
+          y1={horizontalShapeY + horizontalGapDirection * 4}
+          x2={right}
+          y2={horizontalY + horizontalGapDirection * 5}
+        />
+        <line
+          className="dimensionLine"
+          x1={left}
+          y1={horizontalY}
+          x2={right}
+          y2={horizontalY}
+        />
         <polygon
           className="dimensionArrow"
           points={`${left},${horizontalY} ${left + horizontalArrow},${horizontalY - 3.5} ${left + horizontalArrow},${horizontalY + 3.5}`}
@@ -467,9 +496,27 @@ export default function Home() {
           {widthLabel}
         </text>
 
-        <line className="dimensionExtension" x1={right + 4} y1={top} x2={verticalX + 5} y2={top} />
-        <line className="dimensionExtension" x1={right + 4} y1={bottom} x2={verticalX + 5} y2={bottom} />
-        <line className="dimensionLine" x1={verticalX} y1={top} x2={verticalX} y2={bottom} />
+        <line
+          className="dimensionExtension"
+          x1={right + 4}
+          y1={top}
+          x2={verticalX + 5}
+          y2={top}
+        />
+        <line
+          className="dimensionExtension"
+          x1={right + 4}
+          y1={bottom}
+          x2={verticalX + 5}
+          y2={bottom}
+        />
+        <line
+          className="dimensionLine"
+          x1={verticalX}
+          y1={top}
+          x2={verticalX}
+          y2={bottom}
+        />
         <polygon
           className="dimensionArrow"
           points={`${verticalX},${top} ${verticalX - 3.5},${top + verticalArrow} ${verticalX + 3.5},${top + verticalArrow}`}
@@ -585,8 +632,8 @@ export default function Home() {
             {shapes.map((shape) => renderShape(shape))}
             {draftShape && renderShape(draftShape, true)}
           </g>
-          {shapes.map(renderRectangleDimensions)}
-          {draftShape && renderRectangleDimensions(draftShape)}
+          {shapes.map(renderShapeDimensions)}
+          {draftShape && renderShapeDimensions(draftShape)}
         </svg>
       </section>
     </main>
