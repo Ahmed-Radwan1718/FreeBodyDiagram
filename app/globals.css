@@ -308,6 +308,10 @@ button {
   text-decoration-line: none !important;
 }
 
+.canvas g:has(> g > circle[data-support-hit]) > g:first-child > circle[stroke-dasharray] {
+  display: none;
+}
+
 @media (max-width: 720px) {
   .sidebar {
     width: 220px;
